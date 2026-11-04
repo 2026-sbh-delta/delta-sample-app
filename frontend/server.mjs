@@ -1,3 +1,4 @@
+import { instrument, traceHeaders } from './lib/telemetry.mjs';
 import { createServer, request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { readFile } from 'node:fs/promises';
@@ -26,6 +27,7 @@ function proxy(req, res, config) {
   for (const name of ['content-type', 'accept', 'content-length']) {
     if (req.headers[name]) headers[name] = req.headers[name];
   }
+  traceHeaders(headers);
   const incomingUrl = new URL(req.url, 'http://localhost');
   const target = new URL(config.apiOrigin);
   target.pathname = incomingUrl.pathname;
@@ -60,7 +62,7 @@ function proxy(req, res, config) {
 
 export function createFrontend({ env = process.env, logger = console.log } = {}) {
   const config = frontendConfig(env);
-  const server = createServer(async (req, res) => {
+  const server = createServer(instrument(async (req, res) => {
     try {
       const path = requestContext(req, res, 'frontend', logger);
       res.setHeader('Referrer-Policy', 'same-origin');
@@ -92,7 +94,7 @@ export function createFrontend({ env = process.env, logger = console.log } = {})
     } catch (error) {
       fail(res, error);
     }
-  });
+  }, 'frontend'));
   server.requestTimeout = 10000;
   return { server, config };
 }
