@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="생각과 아이디어를 가볍게 기록하는 메모 보드">
+    <meta name="theme-color" content="#f6f7fb">
+    <title>Delta Notes</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" type="module"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">본문으로 이동</a>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="메모 보드 홈">
+        <span class="brand-mark" aria-hidden="true">d</span>
+        <span id="app-name">Delta Notes</span>
+      </a>
+      <div class="header-meta"><span class="header-caption">A LITTLE SPACE FOR YOUR IDEAS</span><span id="environment" class="environment">LOCAL</span></div>
+    </header>
+
+    <main id="main" class="workspace">
+      <section class="page-heading" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow"><span aria-hidden="true"></span> YOUR WORKSPACE</p>
+          <h1 id="page-title">생각이 머무는 곳<span class="heading-dot">.</span></h1>
+          <p class="page-description">떠오른 아이디어부터 작은 기록까지, 메모로 남겨 보세요.</p>
+        </div>
+        <button id="refresh" class="button button-secondary" type="button" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.5-1L20 9M4 15l2.4 3A7 7 0 0 0 17.9 17"/></svg>
+          새로고침
+        </button>
+      </section>
+
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+      <div class="board">
+        <aside class="composer" aria-labelledby="composer-title">
+          <div class="composer-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m14 5 5 5M4 20l4.5-1 11-11a2.8 2.8 0 0 0-4-4l-11 11L4 20Z"/></svg>
+          </div>
+          <h2 id="composer-title">새 메모</h2>
+          <p class="section-description">잊기 전에, 지금 적어 두세요.</p>
+          <form id="note-form">
+            <label for="title">제목 <span class="required-label">필수</span></label>
+            <input id="title" name="title" placeholder="어떤 생각이 떠올랐나요?" maxlength="120" required autocomplete="off" disabled>
+            <div class="field-heading"><label for="content">내용 <span class="optional-label">선택</span></label><span id="character-count" class="character-count">0 / 2,000</span></div>
+            <textarea id="content" name="content" placeholder="아이디어를 조금 더 풀어 보세요.&#10;한 줄만 적어도 좋아요." maxlength="2000" rows="7" disabled></textarea>
+            <button id="submit" class="button button-primary" type="submit" disabled><span aria-hidden="true">+</span><span id="submit-label">메모 남기기</span></button>
+          </form>
+          <div class="storage-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7v1"/></svg><span>임시로 보관하는 메모예요.<br>서버를 재시작하면 사라져요.</span></div>
+        </aside>
+
+        <section class="notes-section" aria-labelledby="notes-title" aria-busy="true" id="notes-section">
+          <div class="notes-heading"><h2 id="notes-title">모든 메모 <span id="note-count" class="count">0</span></h2><span class="sort-label">최신순</span></div>
+          <div id="notes" class="notes-grid"></div>
+          <div id="empty-state" class="empty-state">
+            <div class="empty-illustration" aria-hidden="true"><span class="paper paper-back"></span><span class="paper paper-front"><span></span><span></span><span></span></span><span class="paper-spark">+</span></div>
+            <h3 id="empty-title">메모를 불러오고 있어요</h3>
+            <p id="empty-description">잠시만 기다려 주세요.</p>
+          </div>
+          <div class="list-footer"><span id="last-updated">연결 확인 중</span><span>작은 기록이 좋은 시작이 돼요.</span></div>
+        </section>
+      </div>
+
+      <footer class="service-footer" aria-label="서비스 연결 상태">
+        <div class="service-status"><span id="status-dot" class="status-dot"></span><span id="connection-status">서비스 연결 확인 중</span></div>
+        <div class="versions"><span>FE <code id="fe-version">-</code></span><span>BE <code id="be-version">-</code></span></div>
+      </footer>
+    </main>
+    <noscript><p class="noscript">메모를 사용하려면 브라우저에서 JavaScript를 켜 주세요.</p></noscript>
+  </body>
+</html>
