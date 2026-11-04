@@ -75,7 +75,8 @@ Browser -> FE Node.js server -> BE Node.js server -> process memory
 | 루트 | `HOST=127.0.0.1 npm run dev` 및 Chrome UI 조작 | PASS. 서비스 연결, 메모 생성, 새로고침 후 유지, 삭제 및 0개 목록 확인 |
 | 루트 | Python 소스/설정 정적 검사 | PASS. 35개 파일 포맷, 로컬 문서 링크, 외부 패키지 없음 및 프로젝트 분리 확인 |
 | 루트 | `docker compose config`, `docker build`, 컨테이너 실행 | 미실행. Docker CLI가 설치되지 않음 |
-| GitHub | CI 및 이미지 워크플로 실행 | 미실행. 파일만 작성 |
+| GitHub | `.github/workflows/ci.yml` 자동 실행 | PASS. 개별 빌드, 테스트 19개, Compose 설정 검증, Docker 이미지 빌드 및 FE/BE 컨테이너 연결 확인 |
+| GitHub | 이미지 GHCR 게시 워크플로 | 미실행. 수동 실행 파일만 작성 |
 | Cloud | 실제 배포 | 미실행 |
 
 YAML 파싱에 실행한 명령:
@@ -96,15 +97,37 @@ ruby -e 'require "yaml"; ARGV.each { |path| YAML.parse_file(path); puts "Parsed 
 - 관측: `/healthz` 및 API 헬스체크, 요청별 JSON 로그
 - 롤백: 이전 FE/BE 이미지 태그 및 환경변수로 재시작. 메모리 데이터는 복구하지 않는다.
 - Runbook: 프로젝트 및 서비스별 README에 실행, 개별 빌드, 연결 진단, 이미지 배포 및 롤백 방법을 기록했다.
-- 실제 배포: 미실행. 코드와 배포 설정 준비를 완료했으며 Git 게시를 진행 중이다.
+- 실제 배포: 미실행. 코드와 배포 설정 준비 및 구현 커밋의 Git 게시를 완료했다.
 
 ### Git 게시: 2026-11-04
 
 - 승인: 사용자 "커밋 단위 쪼개서 커밋 푸시 ㄱㄱ"
 - 원격: `2026-sbh-delta/delta-sample-app`, 대상 브랜치 `main`
 - 게시 전 `git ls-remote --heads origin` 결과 원격 브랜치가 비어 있음을 확인했다.
-- SSH 인증에 실패해 기존 GitHub CLI의 HTTPS 인증을 사용한다. 원격 URL과 전역 Git 설정은 변경하지 않는다.
-- 저장소 설정, BE, FE, 통합 검증, CI 및 배포 설정, 운영 문서로 커밋을 나눈다.
+- SSH 인증에 실패해 기존 GitHub CLI의 HTTPS 인증으로 푸시했다. 원격 URL과 전역 Git 설정은 변경하지 않았다.
+- 저장소 설정, BE, FE, 통합 검증, CI 및 배포 설정, 운영 문서로 커밋을 나눴다.
 - 기존 `AGENTS.MD` 내용과 CRLF 줄바꿈은 그대로 보존했다.
 - 작성한 커밋의 SSH 서명 헤더를 실제 Git 객체에서 확인했다.
-- 원격 푸시 및 로컬/원격 SHA 대조: 아직 실행하지 않음
+- 원격 푸시 및 로컬/원격 SHA 대조: PASS. 아래 6개 커밋 게시 후 로컬 HEAD와 원격 `refs/heads/main`이 모두 `4f7967c3dffc4ddf04ac8c380f27652e5b5e3f13`임을 직접 확인했다.
+- 최초 푸시는 GitHub의 `Internal Server Error`로 거부됐다. 쓰기 권한과 비어 있는 원격 브랜치를 재확인하고 동일 커밋으로 재시도해 성공했다. 서버 오류의 원인은 확정하지 않았다.
+
+| 커밋 | 변경 단위 |
+| --- | --- |
+| `cf0f2c4` | 저장소 규칙 및 Node.js 기본 설정 |
+| `ce39d7b` | 독립 BE API 및 이미지 구성 |
+| `beff8ee` | 독립 FE 화면, 런타임 설정, 프록시 및 이미지 구성 |
+| `f3a9de5` | HTTP 통합 테스트, 독립 빌드 테스트 및 로컬 실행 명령 |
+| `a89e636` | Compose, 환경변수 예제 및 개별 이미지 CI |
+| `4f7967c` | 개별 빌드, 배포 운영 및 검증 문서 |
+
+확인에 사용한 명령은 `git push -u origin main`, `git ls-remote --heads origin main`, `git rev-parse HEAD`이다. 원격 접근 명령에는 기존 GitHub CLI 자격증명 헬퍼와 HTTPS URL 변환을 명령 단위로 적용했다. 인증정보는 저장소에 기록하지 않았다.
+
+### 원격 CI 검증
+
+- [CI 실행 41810444430](https://github.com/2026-sbh-delta/delta-sample-app/actions/runs/41810444430)
+- 대상 커밋: `4f7967c3dffc4ddf04ac8c380f27652e5b5e3f13`
+- 실행 상태: `completed`, 결과: `success`
+- 검증: `npm run check`, `npm run build:fe`, `npm run build:be`, `npm test`, `docker compose config --quiet`, `docker compose up -d --build --wait`, FE를 통한 `/api/health` 및 `/runtime-config.json` 요청 모두 성공
+- 컨테이너 정리: `docker compose down` 성공
+- 이 기록은 위 구현 커밋의 실제 원격 상태를 확인한 뒤 작성했다. 기록을 추가하는 문서 커밋의 SHA는 별도 Git 이력으로 확인한다.
+- 클라우드 배포 및 GHCR 이미지 게시를 실행한 결과는 아니다.
