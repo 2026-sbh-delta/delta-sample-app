@@ -1,5 +1,3 @@
-import { sdk } from './telemetry.mjs';
-import { trace, context } from '@opentelemetry/api';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -43,9 +41,8 @@ export function requestContext(req, res, service, logger = console.log) {
     ? req.headers['x-request-id'] : randomUUID();
   res.setHeader('X-Request-Id', requestId);
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  const spanContext = trace.getSpan(context.active())?.spanContext();
   res.on('finish', () => logger(JSON.stringify({
-    timestamp: new Date().toISOString(), service, requestId, traceId: spanContext?.traceId, method: req.method,
+    timestamp: new Date().toISOString(), service, requestId, method: req.method,
     path: req.url.split('?')[0], status: res.statusCode,
     durationMs: Math.round((performance.now() - started) * 100) / 100,
   })));
@@ -75,14 +72,11 @@ export function start(server, config, service) {
   const shutdown = () => {
     if (stopping) return;
     stopping = true;
-    const deadline = setTimeout(() => {
+    server.close(() => process.exit(0));
+    setTimeout(() => {
       server.closeAllConnections();
       process.exit(1);
-    }, 5000);
-    server.close(async () => {
-      try { await sdk?.shutdown(); clearTimeout(deadline); process.exit(0); }
-      catch (error) { console.error(JSON.stringify({ service, event: "telemetry_shutdown_failed" })); clearTimeout(deadline); process.exit(1); }
-    });
+    }, 5000).unref();
   };
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
