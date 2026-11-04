@@ -1,7 +1,0 @@
-*
-!package.json
-!server.mjs
-!lib/
-!lib/**
-!scripts/
-!scripts/**

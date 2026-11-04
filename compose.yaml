@@ -1,38 +1,39 @@
 services:
-  backend:
-    image: ${BE_IMAGE:-delta-sample-backend:local}
-    build:
-      context: ./backend
+  db:
+    image: postgres:17-alpine
     environment:
-      HOST: 0.0.0.0
-      PORT: ${BE_PORT:-8080}
-      API_ENDPOINT: ${API_ENDPOINT:-/api}
-      APP_ENV: ${APP_ENV:-local}
+      POSTGRES_DB: board
+      POSTGRES_USER: board
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD를 설정해야 한다}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U board -d board"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  web:
+    image: ${WEB_IMAGE:-delta-sample-web:local}
+    build: .
+    environment:
+      DATABASE_URL: postgresql://board:${POSTGRES_PASSWORD}@db:5432/board
+      SERVED_BY: ${SERVED_BY:-local}
       APP_VERSION: ${APP_VERSION:-dev}
+      MIGRATE_ON_START: "1"
     ports:
-      - "127.0.0.1:${BE_PORT:-8080}:${BE_PORT:-8080}"
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
     init: true
     restart: unless-stopped
 
-  frontend:
-    image: ${FE_IMAGE:-delta-sample-frontend:local}
-    build:
-      context: ./frontend
-    environment:
-      HOST: 0.0.0.0
-      PORT: ${FE_PORT:-3000}
-      API_HOST: ${API_HOST:-backend}
-      API_PORT: ${API_PORT:-${BE_PORT:-8080}}
-      API_PROTOCOL: ${API_PROTOCOL:-http}
-      API_ENDPOINT: ${API_ENDPOINT:-/api}
-      API_TIMEOUT_MS: ${API_TIMEOUT_MS:-5000}
-      APP_NAME: ${APP_NAME:-Delta Notes}
-      APP_ENV: ${APP_ENV:-local}
-      APP_VERSION: ${APP_VERSION:-dev}
-    ports:
-      - "${FE_PORT:-3000}:${FE_PORT:-3000}"
-    depends_on:
-      backend:
-        condition: service_healthy
-    init: true
-    restart: unless-stopped
+volumes:
+  db-data:

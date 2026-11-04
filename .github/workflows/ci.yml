@@ -13,28 +13,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:ci-only@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-dev.txt
+      - run: pytest
+
+  compose:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          package-manager-cache: false
-      - run: npm run check
-      - run: npm run build:fe
-      - run: npm run build:be
-      - run: npm test
-      - name: Validate Compose
-        run: docker compose config --quiet
-      - name: Build and smoke test FE and BE containers
+      - name: Build and smoke test web and DB containers
         run: |
+          export POSTGRES_PASSWORD="$(openssl rand -hex 16)"
           docker compose up -d --build --wait
-          curl --fail --retry 5 --retry-delay 1 http://localhost:3000/api/health
-          curl --fail http://localhost:3000/runtime-config.json
+          curl --fail --retry 5 --retry-delay 1 http://localhost:8080/healthz
+          curl --fail -o /dev/null http://localhost:8080/board
       - name: Container logs
         if: failure()
         run: docker compose logs
       - name: Stop containers
         if: always()
-        run: docker compose down
+        run: docker compose down -v

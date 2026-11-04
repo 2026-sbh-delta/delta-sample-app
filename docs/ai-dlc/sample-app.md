@@ -1,133 +1,54 @@
-# FE/BE 샘플 앱
+# 시연용 게시판
 
 ## Ideation
 
-- 문제: 환경별 API 주소와 포트를 코드에 넣으면 배포할 때 소스 수정과 재빌드가 필요하다.
-- 사용자: 샘플 앱으로 CI/CD 및 FE와 BE 사이의 연결을 확인하는 팀원
-- 성공 기준: 컴파일과 외부 패키지 설치 없이 실행하고, 환경변수만 바꿔 동일 이미지로 다른 BE에 연결한다.
-- Scope: 메모 조회/추가/삭제, 연결 상태, FE/BE 서버, 환경변수 예제, Docker Compose, CI
-- Non-goals: DB, 영속 저장, 로그인, 클라우드 인프라 생성 및 실제 운영 배포
-- 승인: 2026-11-04 사용자 "DB는 일단 보류 FE/BE만 구현 ㄱㄱ". 제안한 FE/BE의 설계와 구현 진행을 승인했고 DB는 제외했다.
-- 추가 요청: 2026-11-04 "front는 frontend에서, back은 backend에서 작업", "각각 빌드는 따로 할 수 있게". 서비스별 독립 프로젝트와 독립 빌드 컨텍스트를 적용한다.
+- 문제: 시연 시나리오(SAST 탐지 → DAST 실증 → AI 수정 → 멀티클라우드 배포)에 쓸 앱이 SAST·DAST와 같은 코드여야 한다. 11/4 초판(Node.js FE/BE 메모 앱)은 SAST(Python 전용)와 DAST(Flask 게시판 기준)가 둘 다 적용되지 않았다.
+- 사용자: 시연을 보는 심사위원, 파이프라인을 붙이는 팀원
+- 성공 기준: SAST가 저장형 XSS 2건을 DB를 거치는 코드 흐름으로 찾고, DAST 대상 설정이 그대로 동작하며, AWS·GCP가 같은 DB를 볼 때 어느 쪽이 응답했는지 보인다.
+- Scope: 게시글 목록·작성·상세, 댓글, PostgreSQL 저장, 응답 클라우드 표시, Docker Compose, CI
+- Non-goals: 로그인·세션, 수정·삭제, 운영 수준 보안
+- 승인: 2026-11-04 정준우 "1안으로"(저장소 내용을 Flask 게시판 + PostgreSQL로 교체), "로그인도 필요없어 빼"
 
 ## Inception
 
 ### Functional Requirements
 
-- FE에서 메모를 추가하고 목록을 조회하며 개별 메모를 삭제한다.
-- BE 연결 여부와 FE/BE 버전을 확인한다.
-- FE는 실행 시 생성하는 공개 설정만 브라우저에 전달한다.
-- FE의 서버 프록시는 환경변수로 지정한 BE에 요청을 전달한다.
-- BE는 메모리에 데이터를 저장하며 프로세스마다 독립적이다.
+- 글을 작성하면 저장 확인 화면에 `#saved-post` 링크를 보여 주고, 상세 화면 `#post-body`에 본문을 출력한다.
+- 댓글 화면은 CSP(`script-src 'self'`)를 붙여 보여 준다.
+- 모든 응답에 `X-Served-By`, `X-App-Version` 헤더를 붙이고 화면 아래에도 표시한다.
+- `/healthz`는 DB 쿼리까지 확인한다.
 
 ### Non-Functional Requirements
 
-- Node.js 24 기본 모듈과 HTML/CSS/JS만 사용하며 런타임 외부 의존성과 컴파일 단계를 두지 않는다.
-- FE/BE를 독립적으로 실행하고 동일 이미지를 환경마다 재사용한다.
-- 각 서비스가 자체 `package.json`, 빌드 스크립트, 라이브러리와 Dockerfile을 가진다. 서비스 폴더 밖 소스를 참조하지 않는다.
-- 모바일 화면, 키보드 조작, 오류 및 로딩 상태를 제공한다.
-- JSON 입력 크기와 길이를 제한하고 오류에 내부 연결 정보를 노출하지 않는다.
-- 헬스체크, JSON 요청 로그, SIGTERM 종료를 제공한다.
+- Python 3.12, Flask, gunicorn, psycopg 3. 이미지 하나.
+- 스키마 적용은 별도 명령(`python -m app.migrate`)이며 여러 번 실행해도 같다. 모든 테이블에 기본 키를 둔다.
+- SQL은 파라미터 바인딩만 쓴다. `conn.execute(...).fetchone()`처럼 실행 결과를 이어 써서 SAST가 DB 저장소 흐름을 추적하게 한다.
+- 의도한 취약점은 본문·댓글 출력 두 곳뿐이다. 제목은 escape한다.
 
 ### Architecture
 
 ```text
-Browser -> FE Node.js server -> BE Node.js server -> process memory
-              |
-              +-- HTML / CSS / JS / runtime-config.json
+Browser -> web (Flask + gunicorn, 화면·API 한 컨테이너) -> PostgreSQL (쓰기 DB 하나)
 ```
-
-- 브라우저의 API 경로는 FE와 같은 Origin을 사용한다.
-- `API_HOST`, `API_PORT`, `API_PROTOCOL`은 FE 서버가 사용하는 BE 연결값이다.
-- `API_ENDPOINT`는 FE/BE에 동일하게 설정한다. 기본값은 `/api`이다.
-- `PORT`, `HOST`, `APP_ENV`, `APP_VERSION`은 서비스별로 주입한다.
-- DB 관련 패키지, 환경변수, 컨테이너를 추가하지 않는다.
-- `frontend/`와 `backend/`는 독립 프로젝트다. 각 폴더에서 `npm run build`로 `dist/`를 만들며, Docker 빌드 컨텍스트도 각각의 폴더다.
-- 루트에는 전체 실행 편의 명령, Compose 및 서비스 사이 통합 테스트만 둔다.
-
-### Unit of Work, Design, Implementation Plan
-
-| Unit | 설계 및 구현 순서 | Acceptance Criteria |
-| --- | --- | --- |
-| BE | 환경변수 검증, HTTP API, 메모리 저장, 입력 검증, 헬스체크 및 로그 | 메모 CRUD와 오류 응답을 실제 HTTP 테스트로 확인 |
-| FE | 정적 화면, 공개 런타임 설정, BE 프록시, 폼 및 목록 상호작용 | FE를 통한 CRUD, 비공개 설정 미노출, 연결 실패 표시 |
-| Delivery | 서비스별 Dockerfile, Compose, 환경변수 예제, CI 및 운영 안내 | Node 테스트 실행, 변경된 환경변수로 연결 확인, Docker 검증 상태 구분 |
-
-각 Unit은 위 사용자 승인 범위에서 구현한다. 설계, 구현, 실제 테스트 결과와 리뷰를 같은 문서에 기록한다.
 
 ## Construction
 
-- 진행 상태: BE, FE, Delivery Unit 구현 완료
-- 독립 빌드: 서비스별 소스, `package.json`, 빌드 스크립트, `dist/`, `.dockerignore`, Dockerfile 구성 완료
-- 런타임 설정: FE 공개 설정은 허용한 4개 필드만 반환. API 연결값과 서비스 포트는 시작 시 환경변수에서 읽는다.
-- CI: 전체 검증 및 Compose smoke test 구성. 이미지 워크플로는 FE/BE/전체 중 선택해서 빌드 및 GHCR 푸시 가능
-- 리뷰: 다른 서비스 및 루트 소스 의존성 없음, 입력 제한 및 오류 응답, 공개 설정 범위, 문서 링크를 확인했다.
+- 진행 상태: 구현 완료, 로컬 검증 완료. 커밋·푸시 전
+- 작업 브랜치: `feat/flask-board`
 
 ### 실제 검증 기록: 2026-11-04
 
 | 위치 | 실행한 명령 또는 검증 | 결과 |
 | --- | --- | --- |
-| 루트 | `npm run check` | PASS. FE/BE 및 루트 실행/테스트 파일 문법 검사 |
-| `frontend/` | `npm run build` | PASS. FE 전용 `dist/` 생성 |
-| `backend/` | `npm run build` | PASS. BE 전용 `dist/` 생성 |
-| 루트 | `npm test` | PASS. 19개 HTTP/독립 빌드 테스트, 실패 0개 |
-| 루트 | 아래 Ruby YAML 파싱 명령 | PASS. Compose 및 워크플로 2개 문법 파싱. Docker 의미 검증을 뜻하지 않음 |
-| 루트 | `HOST=127.0.0.1 npm run dev` 및 Chrome UI 조작 | PASS. 서비스 연결, 메모 생성, 새로고침 후 유지, 삭제 및 0개 목록 확인 |
-| 루트 | Python 소스/설정 정적 검사 | PASS. 35개 파일 포맷, 로컬 문서 링크, 외부 패키지 없음 및 프로젝트 분리 확인 |
-| 루트 | `docker compose config`, `docker build`, 컨테이너 실행 | 미실행. Docker CLI가 설치되지 않음 |
-| GitHub | `.github/workflows/ci.yml` 자동 실행 | PASS. 개별 빌드, 테스트 19개, Compose 설정 검증, Docker 이미지 빌드 및 FE/BE 컨테이너 연결 확인 |
-| GitHub | 이미지 GHCR 게시 워크플로 | 미실행. 수동 실행 파일만 작성 |
+| 로컬 | PostgreSQL 17 컨테이너 + `pytest` | PASS. 9개 통과 |
+| 로컬 | `delta_sast scan <소스> --no-llm` (delta-network-gateway `services/delta-sast`) | 후보 2건(본문·댓글 저장형 XSS), 양호 2건(escape한 제목). 코드 흐름은 폼 입력 → `posts`/`comments` INSERT → SELECT → HTML |
+| 로컬 | `docker compose up -d --build --wait`, `/healthz` | PASS. 두 컨테이너 healthy, `X-Served-By` 확인 |
+| 로컬 | 브라우저로 글 작성 → 저장 확인 → 상세 → 목록 | PASS. 본문 HTML이 그대로 렌더링됨(의도한 취약점) |
+| GitHub | CI | 미실행(푸시 전) |
 | Cloud | 실제 배포 | 미실행 |
-
-YAML 파싱에 실행한 명령:
-
-```sh
-ruby -e 'require "yaml"; ARGV.each { |path| YAML.parse_file(path); puts "Parsed #{path}" }' compose.yaml .github/workflows/ci.yml .github/workflows/images.yml
-```
-
-첫 HTTP 테스트는 샌드박스의 localhost 바인딩 제한으로 `listen EPERM`이 발생했다. localhost 접근을 허용한 환경에서 다시 실행해 최종 19개가 모두 통과했다. Docker 실행이나 클라우드 배포 결과로 해석하지 않는다.
-
-독립 빌드 테스트는 각 서비스 폴더의 파일만 별도 임시 디렉터리에 복사해 빌드하고, 원본 소스 디렉터리를 삭제한 뒤 `dist/` 산출물만으로 실제 HTTP 요청을 처리하는지 확인했다. 빌드 시 환경과 다른 런타임 버전/환경값을 주입해 재빌드 없이 설정이 바뀌는 것도 확인했다.
-
-반응형 CSS와 모바일용 레이아웃을 구현했다. 데스크톱 렌더링과 폼 조작은 확인했으며, 390px 모바일 화면의 최종 렌더 검증은 완료하지 않았다.
 
 ## Operation
 
-- 실제 배포: 미실행
-- 관측: `/healthz` 및 API 헬스체크, 요청별 JSON 로그
-- 롤백: 이전 FE/BE 이미지 태그 및 환경변수로 재시작. 메모리 데이터는 복구하지 않는다.
-- Runbook: 프로젝트 및 서비스별 README에 실행, 개별 빌드, 연결 진단, 이미지 배포 및 롤백 방법을 기록했다.
-- 실제 배포: 미실행. 코드와 배포 설정 준비 및 구현 커밋의 Git 게시를 완료했다.
-
-### Git 게시: 2026-11-04
-
-- 승인: 사용자 "커밋 단위 쪼개서 커밋 푸시 ㄱㄱ"
-- 원격: `2026-sbh-delta/delta-sample-app`, 대상 브랜치 `main`
-- 게시 전 `git ls-remote --heads origin` 결과 원격 브랜치가 비어 있음을 확인했다.
-- SSH 인증에 실패해 기존 GitHub CLI의 HTTPS 인증으로 푸시했다. 원격 URL과 전역 Git 설정은 변경하지 않았다.
-- 저장소 설정, BE, FE, 통합 검증, CI 및 배포 설정, 운영 문서로 커밋을 나눴다.
-- 기존 `AGENTS.MD` 내용과 CRLF 줄바꿈은 그대로 보존했다.
-- 작성한 커밋의 SSH 서명 헤더를 실제 Git 객체에서 확인했다.
-- 원격 푸시 및 로컬/원격 SHA 대조: PASS. 아래 6개 커밋 게시 후 로컬 HEAD와 원격 `refs/heads/main`이 모두 `4f7967c3dffc4ddf04ac8c380f27652e5b5e3f13`임을 직접 확인했다.
-- 최초 푸시는 GitHub의 `Internal Server Error`로 거부됐다. 쓰기 권한과 비어 있는 원격 브랜치를 재확인하고 동일 커밋으로 재시도해 성공했다. 서버 오류의 원인은 확정하지 않았다.
-
-| 커밋 | 변경 단위 |
-| --- | --- |
-| `cf0f2c4` | 저장소 규칙 및 Node.js 기본 설정 |
-| `ce39d7b` | 독립 BE API 및 이미지 구성 |
-| `beff8ee` | 독립 FE 화면, 런타임 설정, 프록시 및 이미지 구성 |
-| `f3a9de5` | HTTP 통합 테스트, 독립 빌드 테스트 및 로컬 실행 명령 |
-| `a89e636` | Compose, 환경변수 예제 및 개별 이미지 CI |
-| `4f7967c` | 개별 빌드, 배포 운영 및 검증 문서 |
-
-확인에 사용한 명령은 `git push -u origin main`, `git ls-remote --heads origin main`, `git rev-parse HEAD`이다. 원격 접근 명령에는 기존 GitHub CLI 자격증명 헬퍼와 HTTPS URL 변환을 명령 단위로 적용했다. 인증정보는 저장소에 기록하지 않았다.
-
-### 원격 CI 검증
-
-- [CI 실행 41810444430](https://github.com/2026-sbh-delta/delta-sample-app/actions/runs/41810444430)
-- 대상 커밋: `4f7967c3dffc4ddf04ac8c380f27652e5b5e3f13`
-- 실행 상태: `completed`, 결과: `success`
-- 검증: `npm run check`, `npm run build:fe`, `npm run build:be`, `npm test`, `docker compose config --quiet`, `docker compose up -d --build --wait`, FE를 통한 `/api/health` 및 `/runtime-config.json` 요청 모두 성공
-- 컨테이너 정리: `docker compose down` 성공
-- 이 기록은 위 구현 커밋의 실제 원격 상태를 확인한 뒤 작성했다. 기록을 추가하는 문서 커밋의 SHA는 별도 Git 이력으로 확인한다.
-- 클라우드 배포 및 GHCR 이미지 게시를 실행한 결과는 아니다.
+- 배포: 이미지 하나를 클라우드별로 배포하고 `DATABASE_URL`은 같은 쓰기 DB를 가리킨다. `SERVED_BY`만 클라우드별로 다르게 준다.
+- 관측: `/healthz`, gunicorn 접근 로그(표준 출력), `X-Served-By`
+- 롤백: 이전 이미지 태그로 재배포. 스키마는 하위 호환으로만 바꾸므로 DB는 되돌리지 않는다.
