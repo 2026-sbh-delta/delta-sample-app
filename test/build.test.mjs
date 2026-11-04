@@ -15,7 +15,7 @@ for (const service of ['frontend', 'backend']) {
       await rm(source, { recursive: true, force: true });
       await rm(artifact, { recursive: true, force: true });
     });
-    const files = ['package.json', 'server.mjs', 'lib', 'scripts'];
+    const files = ['package.json', 'package-lock.json', 'server.mjs', 'lib', 'scripts'];
     if (service === 'frontend') files.push('public');
     for (const file of files) {
       await cp(new URL(`../${service}/${file}`, import.meta.url), join(source, file), { recursive: true });
@@ -29,6 +29,7 @@ for (const service of ['frontend', 'backend']) {
     assert.ok(!(await readdir(join(source, 'dist'))).includes('.env'));
     await cp(join(source, 'dist'), artifact, { recursive: true });
     await rm(source, { recursive: true, force: true });
+    await cp(new URL(`../${service}/node_modules`, import.meta.url), join(artifact, 'node_modules'), { recursive: true });
 
     const module = await import(pathToFileURL(join(artifact, 'server.mjs')).href);
     const create = service === 'frontend' ? module.createFrontend : module.createBackend;

@@ -1,3 +1,5 @@
+import { sdk } from './telemetry.mjs';
+import { trace, context } from '@opentelemetry/api';
 // Keep the backend independently buildable without a parent workspace package.
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
@@ -42,10 +44,12 @@ export function requestContext(req, res, service, logger = console.log) {
     ? req.headers['x-request-id'] : randomUUID();
   res.setHeader('X-Request-Id', requestId);
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  const spanContext = trace.getSpan(context.active())?.spanContext();
   res.on('finish', () => logger(JSON.stringify({
     timestamp: new Date().toISOString(),
     service,
     requestId,
+    traceId: spanContext?.traceId,
     method: req.method,
     path: req.url.split('?')[0],
     status: res.statusCode,
@@ -106,11 +110,14 @@ export function start(server, config, service) {
   const shutdown = () => {
     if (stopping) return;
     stopping = true;
-    server.close(() => process.exit(0));
-    setTimeout(() => {
+    const deadline = setTimeout(() => {
       server.closeAllConnections();
       process.exit(1);
-    }, 5000).unref();
+    }, 5000);
+    server.close(async () => {
+      try { await sdk?.shutdown(); clearTimeout(deadline); process.exit(0); }
+      catch (error) { console.error(JSON.stringify({ service, event: "telemetry_shutdown_failed" })); clearTimeout(deadline); process.exit(1); }
+    });
   };
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);

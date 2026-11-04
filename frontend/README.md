@@ -51,3 +51,7 @@ docker run --rm -p 3000:3000 --env-file .env delta-sample-frontend:demo
 브라우저는 FE와 같은 Origin의 API를 호출합니다. FE가 환경변수로 지정한 BE에 요청을 전달하므로 API 연결값을 바꿔도 재빌드할 필요가 없습니다. 환경변수 변경 후 FE를 재시작합니다. `.env`보다 외부에서 주입한 환경변수가 우선합니다.
 
 `GET /healthz`는 FE 상태, `GET /api/health`는 BE까지의 연결 상태를 확인합니다. API 경로를 변경했다면 연결 확인 경로도 변경합니다.
+
+## 선택 데이터·관측 지원
+
+먼저 `npm ci`를 실행한다. 배포 산출물에도 package.json/package-lock.json을 포함하므로 단독 배포 시 해당 폴더에서 `npm ci --omit=dev`를 실행한다. Docker 이미지는 의존성을 포함한다. 새 PostgreSQL/OTel 설정은 [루트 설명](../README.md#온프레미스의-데이터와-관측)을 따른다.

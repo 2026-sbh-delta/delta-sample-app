@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
-const sources = ['server.mjs', 'lib', 'public'];
+const sources = ['server.mjs', 'lib', 'public', 'package.json', 'package-lock.json'];
 let count = 0;
 async function check(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {

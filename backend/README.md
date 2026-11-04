@@ -53,3 +53,7 @@ docker run --rm -p 8080:8080 --env-file .env delta-sample-backend:demo
 | DELETE | `/api/notes/:id` | 메모 삭제 |
 
 `API_ENDPOINT`를 변경하면 `/api` 접두사도 바뀝니다. 제목은 1~120자, 내용은 최대 2,000자, JSON은 최대 16 KiB이며 메모는 1,000개까지 보관합니다.
+
+## 선택 데이터·관측 지원
+
+먼저 `npm ci`를 실행한다. 배포 산출물에도 package.json/package-lock.json을 포함하므로 단독 배포 시 해당 폴더에서 `npm ci --omit=dev`를 실행한다. Docker 이미지는 의존성을 포함한다. 새 PostgreSQL/OTel 설정은 [루트 설명](../README.md#온프레미스의-데이터와-관측)을 따른다.
