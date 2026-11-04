@@ -17,6 +17,6 @@ if (!process.argv.includes('--check')) {
   const output = new URL('dist/', root);
   await rm(output, { recursive: true, force: true });
   await mkdir(output, { recursive: true });
-  for (const source of ['server.mjs', 'lib', 'package.json', 'package-lock.json']) await cp(new URL(source, root), new URL(source, output), { recursive: true });
+  for (const source of ['server.mjs', 'lib']) await cp(new URL(source, root), new URL(source, output), { recursive: true });
   console.log('Backend: built dist/. Run npm run start:built or node dist/server.mjs.');
 }

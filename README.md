@@ -3,11 +3,11 @@
 FE/BE 연결과 CI/CD를 확인하는 메모 샘플 앱입니다. 메모 조회/추가/삭제와 서비스 연결 상태를 제공합니다.
 
 - FE: HTML/CSS/JavaScript와 Node.js 정적 서버 및 API 프록시
-- BE: Node.js HTTP API, 기본 메모리 저장 또는 선택 PostgreSQL 저장
-- 각 폴더에서 npm ci로 고정 의존성 설치. OTel·PostgreSQL은 환경변수로 활성화
+- BE: Node.js HTTP API와 프로세스 메모리 저장
+- 외부 npm 패키지, 컴파일, DB 없이 실행. 배포용 빌드는 각 프로젝트에서 별도 패키징
 - FE/BE 별도 이미지, 실행 시 환경변수 주입
 
-기본 메모리 모드의 메모는 BE 재시작 시 사라집니다. 여러 BE 인스턴스 사이에 공유되지 않으므로 이 샘플은 BE 1개로 실행합니다. 로그인은 포함하지 않습니다.
+메모는 BE 재시작 시 사라집니다. 여러 BE 인스턴스 사이에 공유되지 않으므로 이 샘플은 BE 1개로 실행합니다. 로그인은 포함하지 않습니다.
 
 ## FE와 BE를 각각 작업하고 빌드
 
@@ -20,14 +20,12 @@ FE/BE 연결과 CI/CD를 확인하는 메모 샘플 앱입니다. 메모 조회/
 
 ```sh
 # frontend/에서
-npm ci
 npm run build
 npm run start:built
 ```
 
 ```sh
 # backend/에서
-npm ci
 npm run build
 npm run start:built
 ```
@@ -232,11 +230,3 @@ HTTP 테스트는 임시 localhost 포트를 사용합니다. 메모 CRUD, 런�
 설계 승인 및 실제 실행한 검증은 [AI-DLC 기록](docs/ai-dlc/sample-app.md)에 정리합니다.
 
 참고: [Node.js HTTP](https://nodejs.org/docs/latest-v24.x/api/http.html), [Node.js 환경변수](https://github.com/nodejs/node/blob/main/doc/api/environment_variables.md), [Docker GitHub Actions](https://docs.docker.com/build/ci/github-actions/multi-platform/).
-
-## 온프레미스의 데이터와 관측
-
-선택 기능이다. 각 폴더에서 `npm ci` 후 실행한다. `DATABASE_URL`이 없으면 기존 메모리 저장을 사용한다. PostgreSQL 사용 시 전용 DB에 `backend/schema.sql`을 먼저 적용하고 BE에만 접속값을 전달한다. FE에는 DB 비밀번호를 전달하지 않는다.
-
-`OTEL_EXPORTER_OTLP_ENDPOINT`를 설정하면 HTTP OTLP로 FE·BE trace, 요청 지연 histogram, 5xx 오류를 보낸다. `OTEL_SERVICE_NAME`은 `delta-notes-frontend`/`delta-notes-backend`로 구분한다. 환경 ID는 신뢰할 수 있는 중앙 Collector에서 부여한다. 이미지 빌드 시 비밀값을 넣지 않는다.
-
-발표용 DB 이전은 쓰기 중단 후 같은 PostgreSQL 버전의 dump/restore다. 현재 로그인 기능이 없으므로 세션 유지 시연은 포함하지 않는다.

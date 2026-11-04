@@ -15,5 +15,3 @@
 - 상세 설계와 검증: [AI-DLC 기록](ai-dlc/sample-app.md)
 
 배포와 운영 방법은 [프로젝트 README](../README.md)에 정리했다.
-
-- [온프레미스 DB·관측 구현](ai-dlc/onprem-data-observability.md)
