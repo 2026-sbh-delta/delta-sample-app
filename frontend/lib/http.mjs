@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -57,7 +58,7 @@ export function allow(req, res, methods) {
 }
 
 export function isMain(url) {
-  return Boolean(process.argv[1]) && url === pathToFileURL(resolve(process.argv[1])).href;
+  return Boolean(process.argv[1]) && url === pathToFileURL(realpathSync(resolve(process.argv[1]))).href;
 }
 
 export function start(server, config, service) {

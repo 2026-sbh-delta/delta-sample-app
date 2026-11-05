@@ -1,5 +1,6 @@
 // Keep the backend independently buildable without a parent workspace package.
 import { randomUUID } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -91,7 +92,7 @@ export function readJson(req, limit = 16384) {
 }
 
 export function isMain(url) {
-  return Boolean(process.argv[1]) && url === pathToFileURL(resolve(process.argv[1])).href;
+  return Boolean(process.argv[1]) && url === pathToFileURL(realpathSync(resolve(process.argv[1]))).href;
 }
 
 export function start(server, config, service) {

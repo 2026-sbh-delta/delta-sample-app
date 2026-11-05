@@ -16,6 +16,7 @@ for (const service of ['frontend', 'backend']) {
       await rm(artifact, { recursive: true, force: true });
     });
     const files = ['package.json', 'server.mjs', 'lib', 'scripts'];
+    if (service === 'backend') files.push('package-lock.json');
     if (service === 'frontend') files.push('public');
     for (const file of files) {
       await cp(new URL(`../${service}/${file}`, import.meta.url), join(source, file), { recursive: true });
