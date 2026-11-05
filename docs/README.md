@@ -8,13 +8,14 @@
 - 설계: 기존 notes API/DB를 유지하고 단건 GET을 추가. 목록/글쓰기/상세 화면과 모바일 UI 구성
 - 구현: 게시글 목록/등록/상세, Linux OS 기반 AWS/GCP 감지, 명시 설정 우선순위와 온프레미스 테마 완료. DB 스키마 변경 없음
 - 검증: 최종 문법 검사와 FE/BE 개별 빌드 성공. 실제 전용 PostgreSQL/TLS를 포함한 테스트 29개 통과, 실패/skip 0
-- 브라우저: 실제 AWS 주황/GCP 파랑 화면과 정상 연결을 Chrome 새 탭에서 확인. 390px 모바일과 등록 실패 후 최종 UI는 기존 미완료 범위를 유지하며 새 원격 CI는 미실행
+- 브라우저: 실제 AWS 주황/GCP 파랑 화면과 정상 연결을 Chrome 새 탭에서 확인. 390px 모바일과 등록 실패 후 최종 UI는 기존 미완료 범위를 유지
 - 현재 운영: 사용자 후속 요청으로 AWS/GCP Compose만 중지. AWS 앱2개/GCP 앱과 Proxy3개 제거, 프로젝트 컨테이너/네트워크 잔여0개, 두 delta-compose inactive/disabled 확인
 - 자원 보존: 기존 VM/디스크/DB 식별자와 실행 상태, 각 호스트 이미지9개와 배포 설정 해시 동일. 공개 API는 AWS502/GCP503으로 앱 중지 반영
 - 중지 전 배포 검증: 같은 소스 버전 547265cbb0ce5cfdb0816716cb3334adfbfbdef5, 실제 OS 자동 감지 aws/gcp, storage=postgres, 외부 생성/목록/상세/없는 글404/검증 글 삭제, 정적 파일 해시 일치 확인
 - Git 구분: 위 버전은 원본 서비스 파일27개를 대조한 배포 전용 로컬 스냅샷 커밋. 배포 당시 원본 HEAD fd9a661과 미커밋 작업을 유지했으며 이 스냅샷은 원격 게시 완료를 뜻하지 않음
 - Terraform Plan/Apply/원본 작업 폴더 커밋/원격 푸시: 게시판 배포 당시 미실행. 이후 Git 게시 상태는 원격 저장소에서 확인
 - 게시 전 재검증: 2026-11-05 문법 검사와 FE/BE 개별 빌드 성공. 전용 임시 PostgreSQL/TLS를 포함한 테스트 29개 통과, 실패/skip 0
+- Git 게시와 CI: 기능별 커밋을 원격 main에 푸시. 게시판 코드가 포함된 `40e0ca9`의 [CI 42047802737](https://github.com/2026-sbh-delta/delta-sample-app/actions/runs/42047802737) 성공. 이후 문서 커밋의 CI는 GitHub Actions에서 확인
 - 다음 작업: 사용자 재개 요청 시 보존한 이미지로 실행. 최신 중지 상태와 이전 배포/검증 이력은 [게시판 기록](ai-dlc/bulletin-board.md)을 따름
 
 ## PostgreSQL 후속 작업 (2026-11-05)

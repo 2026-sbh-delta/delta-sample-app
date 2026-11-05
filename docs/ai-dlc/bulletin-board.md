@@ -114,7 +114,7 @@ Browser: hash route + list / write / detail views
 - Implementation Plan: 단건 API와 독립 산출물 검증 확장 -> `npm run check` -> `npm run build:fe`와 `npm run build:be` -> `npm test` -> 가능한 전용 로컬 PostgreSQL/브라우저 검증 -> README/서비스 README/AI-DLC 상태 갱신과 diff 리뷰.
 - Approval: 2026-11-05 사용자 `ㄱㄱㄱ`으로 구현과 테스트 승인.
 - Implementation: 기존 HTTP/독립 빌드/PG 테스트 확장, 환경변수 예제/Compose와 프로젝트/서비스 README, AI-DLC 상태 갱신 완료.
-- Test: 최종 문법 검사, 개별 빌드, 실제 PG/TLS 포함 29개 테스트를 실행했다. Docker는 미설치로 로컬 실행하지 않았고 원격 CI는 미실행이다.
+- Test: 최종 문법 검사, 개별 빌드, 실제 PG/TLS 포함 29개 테스트를 실행했다. Docker는 미설치로 로컬 실행하지 않았다. 게시 후 원격 CI 결과는 Git 게시 기록을 따른다.
 - Review: FE/BE의 상위 소스 의존성 없음, 신규 런타임 패키지 없음, 기존 PG 데이터/스키마 유지, 문서 링크와 검증 상태 구분을 확인했다. 미완료 브라우저 검증을 통과로 표시하지 않았다.
 
 ## Operation
@@ -159,6 +159,16 @@ Browser: hash route + list / write / detail views
 | `npm run build:fe` / `npm run build:be` | 각각 종료 0 |
 | `python3 artifacts/board-qa/postgres-check.py` | 전용 임시 PostgreSQL과 TLS를 사용한 `npm test` 종료 0. 29개 통과, 실패/skip 0. DB 종료와 임시 디렉터리 제거 완료 |
 | `git ls-remote --heads origin main` | 게시 전 원격 main은 로컬 기준 `fd9a661`과 일치 |
+
+### Git 게시와 원격 CI: 2026-11-05 KST
+
+| 확인 | 결과 |
+| --- | --- |
+| `git push origin main` | 백엔드, 게시판 화면/테마, 문서 커밋을 원격 main에 게시. 원격과 로컬 `40e0ca9` 일치 확인 |
+| GitHub Actions [CI 42047802737](https://github.com/2026-sbh-delta/delta-sample-app/actions/runs/42047802737) | `40e0ca9`에서 성공. 문법 검사, FE/BE 빌드, 테스트, Compose 검증 및 컨테이너 스모크 테스트 포함 |
+| GitHub 커밋 서명 확인 | `40e0ca9`의 SSH 서명이 유효함을 확인 |
+
+위 CI는 해당 커밋을 검증한 결과다. 이후 문서 커밋의 실행 결과는 GitHub Actions에서 확인한다.
 
 최초 실패는 localhost 바인딩 권한 제한이었다. localhost 접근을 허용한 환경에서 실제 DB를 포함해 다시 실행한 결과만 최종 통과로 기록했다. 마지막 UI 응답 순서 처리 수정 후 문법 검사/개별 빌드/29개 테스트를 재실행했다. 수동 UI 관찰은 해당 알림 처리 수정 전이며 새 코드의 브라우저 최종 검증을 의미하지 않는다.
 
