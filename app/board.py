@@ -51,8 +51,8 @@ def post_detail(post_id: str):
     post = get_post(post_id)
     if post is None:
         abort(404)
-    # 본문을 그대로 HTML에 넣는다.
-    body = post["body"]
+    # 본문은 HTML 텍스트 맥락에 맞게 인코딩한다.
+    body = escape(post["body"])
     content = (f'<article class="card post"><h2>{escape(post["title"])}</h2>'
                f'<p class="meta">{post["created_at"]:%Y-%m-%d %H:%M}</p><div id="post-body">{body}</div></article>'
                f'<div class="post-nav"><a class="ghost" href="/board">← 목록</a>'
