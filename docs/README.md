@@ -8,5 +8,6 @@
 - 이전 판: 11/4 Node.js FE/BE 메모 앱은 SAST·DAST가 적용되지 않아 교체했다. Git 이력(`df9e26b`까지)에 남아 있다.
 - 다음 작업: 원격 CI 확인, 클라우드별 배포. DAST 대상 설정은 이 저장소를 받아 고치도록 바뀌었다(delta-network-gateway `services/delta-dast`, 미커밋)
 - 상세 설계와 검증: [AI-DLC 기록](ai-dlc/sample-app.md)
+- DB: PostgreSQL 16(개발·스테이징 공통). 스테이징은 클라우드별 전용 DB, 배포 전 `python -m app.reset`으로 초기화. [스테이징 DB 기록](ai-dlc/staging-db.md)
 
 실행과 운영 방법은 [프로젝트 README](../README.md)에 정리했다.
