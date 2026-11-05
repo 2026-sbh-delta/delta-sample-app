@@ -14,7 +14,9 @@ export function postgresConfig(env) {
   if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) throw new Error('PGPORT must be between 1 and 65535');
   const mode = env.PGSSLMODE ?? 'verify-full';
   if (!['disable', 'verify-full'].includes(mode)) throw new Error('PGSSLMODE must be verify-full or local-only disable');
-  if (mode === 'disable' && !['127.0.0.1', 'localhost', '::1'].includes(env.PGHOST)) {
+  // 평문은 로컬 연결에만 허용한다. /cloudsql/<연결 이름>은 Cloud Run 내장 Cloud SQL 소켓이다(외부 구간은 Cloud SQL이 IAM·TLS로 보호).
+  if (mode === 'disable' && !['127.0.0.1', 'localhost', '::1'].includes(env.PGHOST)
+      && !/^\/cloudsql\/[a-z0-9-]+:[a-z0-9-]+:[a-z0-9-]+$/.test(env.PGHOST)) {
     throw new Error('Disabling PostgreSQL TLS is allowed only for a local test database');
   }
   if (mode === 'verify-full' && !env.PGSSLROOTCERT) throw new Error('PGSSLROOTCERT is required for verified PostgreSQL TLS');
