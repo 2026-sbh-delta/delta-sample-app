@@ -41,13 +41,13 @@ def test_empty_post_is_rejected(client):
     assert client.post("/posts", data={"title": "", "body": "x"}).status_code == 422
 
 
-def test_comments_are_stored_under_csp(client):
+def test_comments_are_escaped_under_csp(client):
     path = write_post(client)
     res = client.post(f"{path}/comments", data={"comment": "<em>댓글</em>"})
     assert res.status_code == 303
     page = client.get(f"{path}/comments")
     assert "script-src 'self'" in page.headers["Content-Security-Policy"]
-    assert "<li><em>댓글</em></li>" in page.get_data(as_text=True)
+    assert "<li>&lt;em&gt;댓글&lt;/em&gt;</li>" in page.get_data(as_text=True)
 
 
 def test_unknown_post_is_404(client):
