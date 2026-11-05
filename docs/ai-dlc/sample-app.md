@@ -1,5 +1,7 @@
 # FE/BE 샘플 앱
 
+2026-11-05: PostgreSQL 후속 구현을 승인받았다. 아래 내용은 기존 DB 없는 구현의 범위와 검증 기록이며 현재 변경과 검증은 [PostgreSQL 기록](postgresql-storage.md)을 따른다.
+
 ## Ideation
 
 - 문제: 환경별 API 주소와 포트를 코드에 넣으면 배포할 때 소스 수정과 재빌드가 필요하다.

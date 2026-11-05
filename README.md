@@ -3,11 +3,12 @@
 FE/BE 연결과 CI/CD를 확인하는 메모 샘플 앱입니다. 메모 조회/추가/삭제와 서비스 연결 상태를 제공합니다.
 
 - FE: HTML/CSS/JavaScript와 Node.js 정적 서버 및 API 프록시
-- BE: Node.js HTTP API와 프로세스 메모리 저장
-- 외부 npm 패키지, 컴파일, DB 없이 실행. 배포용 빌드는 각 프로젝트에서 별도 패키징
+- BE: Node.js HTTP API와 memory/PostgreSQL 저장 선택
+- memory 모드는 Node.js 24만으로 실행. PostgreSQL 모드는 BE에서 `npm ci`로 의존성 설치
+- 배포용 빌드는 각 프로젝트에서 별도 패키징
 - FE/BE 별도 이미지, 실행 시 환경변수 주입
 
-메모는 BE 재시작 시 사라집니다. 여러 BE 인스턴스 사이에 공유되지 않으므로 이 샘플은 BE 1개로 실행합니다. 로그인은 포함하지 않습니다.
+기본 memory 모드는 BE 재시작 시 메모가 사라집니다. `STORAGE_BACKEND=postgres`를 지정하면 PostgreSQL에 저장해 재시작 후에도 유지합니다. 초기 배포는 BE 1개이며 로그인은 포함하지 않습니다. [DB 설정과 초기화](backend/README.md#postgresql-저장)를 확인하세요.
 
 ## FE와 BE를 각각 작업하고 빌드
 
@@ -41,7 +42,7 @@ docker build -t delta-sample-backend:demo-1 ./backend
 
 ## 로컬에서 실행
 
-Node.js 24가 필요합니다. `npm install`이나 빌드는 필요하지 않습니다.
+기본 memory 모드는 Node.js 24만 있으면 실행하며 빌드가 필요하지 않습니다. PostgreSQL 모드는 `npm ci --prefix backend --ignore-scripts`와 별도 DB 초기화가 필요합니다.
 
 ```sh
 npm run dev
@@ -114,7 +115,7 @@ docker compose up -d --no-build --wait
 브라우저는 `/runtime-config.json`에서 `appName`, `environment`, `version`, `apiEndpoint`만 읽습니다. `API_HOST`와 `API_PORT`는 FE 서버 내부에서 사용하고 브라우저에 전달하지 않습니다. 브라우저에는 FE와 같은 Origin의 API 경로만 노출합니다.
 
 ```text
-Browser -> FE /api/* -> http://API_HOST:API_PORT/api/* -> BE memory
+Browser -> FE /api/* -> http://API_HOST:API_PORT/api/* -> BE -> memory or PostgreSQL
 ```
 
 API 주소나 포트를 변경해도 FE 소스 수정과 이미지 재빌드가 필요하지 않습니다. 변수는 프로세스 시작 시 읽으므로 변경 후 재시작합니다. HTTPS 리버스 프록시 앞에서 실행해도 되며, 원래 요청의 `Host` 헤더를 FE에 전달해야 합니다.
@@ -188,7 +189,7 @@ docker compose up -d --no-build --wait
 
 ### 롤백
 
-`FE_IMAGE`, `BE_IMAGE`, `APP_VERSION`을 이전 태그로 되돌리고 필요한 연결 환경변수도 복원한 뒤 같은 명령을 실행합니다. SHA 이미지 태그를 사용하면 배포 버전을 구분하기 좋습니다. 롤백하거나 BE를 재시작하면 기존 메모리는 초기화됩니다.
+`FE_IMAGE`, `BE_IMAGE`, `APP_VERSION`을 이전 태그로 되돌리고 필요한 연결 환경변수도 복원한 뒤 같은 명령을 실행합니다. SHA 이미지 태그를 사용하면 배포 버전을 구분하기 좋습니다. memory 모드는 BE 재시작 시 초기화됩니다. PostgreSQL 모드의 앱 롤백은 DB를 삭제하지 않으며 스키마 변경은 별도로 검토합니다.
 
 ## API 및 연결 확인
 
@@ -230,3 +231,7 @@ HTTP 테스트는 임시 localhost 포트를 사용합니다. 메모 CRUD, 런�
 설계 승인 및 실제 실행한 검증은 [AI-DLC 기록](docs/ai-dlc/sample-app.md)에 정리합니다.
 
 참고: [Node.js HTTP](https://nodejs.org/docs/latest-v24.x/api/http.html), [Node.js 환경변수](https://github.com/nodejs/node/blob/main/doc/api/environment_variables.md), [Docker GitHub Actions](https://docs.docker.com/build/ci/github-actions/multi-platform/).
+
+## AWS EC2와 RDS 배포
+
+`delta-network-gateway` 저장소의 `terraform/workload/`와 `deploy/workload/`에서 인프라와 개별 산출물 배포를 관리합니다. FE/BE는 x86 EC2 각 1대, DB는 RDS PostgreSQL이며 공개 ALB를 통해 FE에 접속합니다. 앱은 AWS SDK 없이 환경변수로 연결하고 secret 조회는 EC2 wrapper가 담당합니다. 현재 실제 배포 상태는 [PostgreSQL 작업 기록](docs/ai-dlc/postgresql-storage.md)을 따릅니다.

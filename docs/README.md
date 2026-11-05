@@ -1,6 +1,14 @@
 # 프로젝트 진행 상태
 
-## FE/BE 샘플 앱
+## PostgreSQL 후속 작업 (2026-11-05)
+
+- 승인: EC2 FE/BE와 RDS 배포의 Ideation, Inception 및 U1~U4 구현 계획 승인. 추가 지시로 AWS 인스턴스는 x86 사용
+- 구현: memory/PostgreSQL 저장 선택, DB 초기화, 독립 dist/Docker 패키징 및 실제 DB 통합 테스트
+- 검증: 새 코드 테스트와 실제 AWS 배포 상태는 [PostgreSQL 기록](ai-dlc/postgresql-storage.md)을 따름
+- 실제 AWS 배포: [공개 앱](http://delta-lab-notes-alb-1242820262.ap-northeast-2.elb.amazonaws.com)의 CRUD/BE 재시작 후 데이터 보존/TLS/IAM/로그 검증 완료
+- 코드 게시와 원격 CI 상태: Git 이력과 해당 커밋의 CI 결과를 확인
+
+## 기존 FE/BE 샘플 앱 (2026-11-04 기록)
 
 - 승인 범위: 메모 조회/추가/삭제, FE/BE 분리, 실행 시 환경변수 주입, Docker 및 CI 설정
 - DB: 사용자 요청에 따라 보류. BE 메모리만 사용하며 재시작 시 메모를 초기화한다.
