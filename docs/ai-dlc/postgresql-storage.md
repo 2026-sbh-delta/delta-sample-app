@@ -2,6 +2,8 @@
 
 기준일: 2026-11-05 (Asia/Seoul).
 
+게시판 UI/단건 조회/테마 후속 변경은 [게시판 기록](bulletin-board.md)을 따른다. 기존 PostgreSQL 스키마는 유지하며 아래 실제 AWS 배포 기록은 게시판 변경 전 버전 기준이다.
+
 ## 승인과 현재 상태
 
 - 사용자 요청: Frontend EC2 1대, Backend EC2 1대, RDS PostgreSQL 1개로 배포한다. FE는 인터넷 공개다.

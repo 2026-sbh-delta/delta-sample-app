@@ -1,6 +1,6 @@
-# Delta Notes
+# Delta Board
 
-FE/BE 연결과 CI/CD를 확인하는 메모 샘플 앱입니다. 메모 조회/추가/삭제와 서비스 연결 상태를 제공합니다.
+게시글을 등록하고 목록과 상세 화면에서 조회하는 게시판 샘플 앱입니다. 댓글 없이 글쓰기와 읽기에 집중하며 AWS, GCP, 온프레미스에 따라 화면 테마를 구분합니다.
 
 - FE: HTML/CSS/JavaScript와 Node.js 정적 서버 및 API 프록시
 - BE: Node.js HTTP API와 memory/PostgreSQL 저장 선택
@@ -8,7 +8,22 @@ FE/BE 연결과 CI/CD를 확인하는 메모 샘플 앱입니다. 메모 조회/
 - 배포용 빌드는 각 프로젝트에서 별도 패키징
 - FE/BE 별도 이미지, 실행 시 환경변수 주입
 
-기본 memory 모드는 BE 재시작 시 메모가 사라집니다. `STORAGE_BACKEND=postgres`를 지정하면 PostgreSQL에 저장해 재시작 후에도 유지합니다. 초기 배포는 BE 1개이며 로그인은 포함하지 않습니다. [DB 설정과 초기화](backend/README.md#postgresql-저장)를 확인하세요.
+기본 memory 모드는 BE 재시작 시 게시글이 사라집니다. `STORAGE_BACKEND=postgres`를 지정하면 PostgreSQL에 저장해 재시작 후에도 유지합니다. 초기 배포는 BE 1개이며 로그인은 포함하지 않습니다. [DB 설정과 초기화](backend/README.md#postgresql-저장)를 확인하세요.
+
+## 배포 주소와 현재 상태
+
+- [AWS 게시판](http://delta-lab-notes-alb-1242820262.ap-northeast-2.elb.amazonaws.com/#/posts): 주황 테마
+- [GCP 게시판](http://34.64.134.28/#/posts): 파랑 테마
+
+2026-11-05에 기존 각 호스트의 Compose로 배포해 OS 자동 감지와 PostgreSQL 저장, 게시글 생성/상세 조회를 확인했습니다. 이후 사용자 요청으로 두 Compose를 내리고 자동 시작을 해제했습니다. 현재 앱 접속은 중지 상태이며 VM/DB/이미지/설정은 보존합니다. 배포 소스의 Git 게시 상태와 최신 운영 기록은 [게시판 기록](docs/ai-dlc/bulletin-board.md)을 확인하세요.
+
+## 게시판 사용
+
+1. 목록의 `글쓰기`를 누르고 제목과 본문을 입력합니다. 제목만 입력해도 등록할 수 있습니다.
+2. `게시글 등록`을 누르면 등록한 글의 상세 화면으로 이동합니다.
+3. `목록으로`에서 최신순 게시글을 확인하고 제목을 눌러 다시 읽습니다.
+
+목록은 `/#/posts`, 글쓰기는 `/#/posts/new`, 상세는 `/#/posts/:id`입니다. 상세 주소 직접 접속, 새로고침, 브라우저 뒤로/앞으로 이동을 지원합니다. 등록 실패 시 작성한 입력은 유지합니다. 기존 메모는 게시글로 그대로 표시하며 댓글/수정/삭제 UI는 제공하지 않습니다. 기존 삭제 API는 유지합니다.
 
 ## FE와 BE를 각각 작업하고 빌드
 
@@ -108,17 +123,34 @@ docker compose up -d --no-build --wait
 | `API_PROTOCOL` | `http` | BE 연결 프로토콜. `http` 또는 `https` |
 | `API_ENDPOINT` | `/api` | API 경로 접두사. BE와 동일하게 설정 |
 | `API_TIMEOUT_MS` | `5000` | BE 요청의 전체 제한 시간. 최대 `120000` |
-| `APP_NAME` | `Delta Notes` | 화면 이름과 브라우저 제목 |
+| `APP_NAME` | `Delta Board` | 화면 이름과 브라우저 제목 |
+| `CLOUD_PROVIDER` | `auto` | OS 기반 테마 감지. `aws`, `gcp`, `onprem`, `default`로 재정의 가능 |
 | `APP_ENV` | `local` | 화면에 표시할 환경 이름 |
 | `APP_VERSION` | `dev` | 화면에 표시할 FE 버전 |
 
-브라우저는 `/runtime-config.json`에서 `appName`, `environment`, `version`, `apiEndpoint`만 읽습니다. `API_HOST`와 `API_PORT`는 FE 서버 내부에서 사용하고 브라우저에 전달하지 않습니다. 브라우저에는 FE와 같은 Origin의 API 경로만 노출합니다.
+브라우저는 `/runtime-config.json`에서 `appName`, `environment`, `version`, `apiEndpoint`, `cloudProvider`만 읽습니다. `API_HOST`와 `API_PORT`는 FE 서버 내부에서 사용하고 브라우저에 전달하지 않습니다. 브라우저에는 FE와 같은 Origin의 API 경로만 노출합니다.
 
 ```text
 Browser -> FE /api/* -> http://API_HOST:API_PORT/api/* -> BE -> memory or PostgreSQL
 ```
 
 API 주소나 포트를 변경해도 FE 소스 수정과 이미지 재빌드가 필요하지 않습니다. 변수는 프로세스 시작 시 읽으므로 변경 후 재시작합니다. HTTPS 리버스 프록시 앞에서 실행해도 되며, 원래 요청의 `Host` 헤더를 FE에 전달해야 합니다.
+
+### 클라우드별 화면 테마
+
+| CLOUD_PROVIDER | 동작 |
+| --- | --- |
+| 미설정, 빈 값, `auto` | Linux DMI에서 AWS/GCP를 감지하고, 식별하지 못하면 기본 회색 테마 |
+| `aws` | 주황 배경과 강조색 |
+| `gcp` | 파란 배경과 강조색 |
+| `onprem` | 초록 배경과 강조색 |
+| `default` | 자동 감지를 건너뛰고 기본 회색 테마 |
+
+FE가 시작할 때 `/sys/class/dmi/id/`의 제조사, 제품명, EC2 장비 태그를 읽습니다. 원본 장비 정보나 인스턴스 ID는 브라우저에 전달하지 않습니다. 네트워크 metadata 서비스나 추가 패키지는 사용하지 않습니다. DMI 정보가 가려진 컨테이너와 Linux 외 OS에서는 감지되지 않을 수 있으며, 감지 실패를 온프레미스로 판단하지 않습니다. 온프레미스는 `CLOUD_PROVIDER=onprem`으로 지정합니다.
+
+예를 들어 `frontend/.env`에 `CLOUD_PROVIDER=onprem`을 설정하고 FE를 재시작하면 초록 테마를 사용합니다. 셸/CI의 외부 환경변수는 `.env`보다 우선하며, 명시한 값은 자동 감지보다 우선합니다. 소스 수정과 재빌드 없이 같은 산출물을 재사용합니다. 허용하지 않은 값은 FE 시작 시 오류로 처리합니다. 별도로 지정한 `APP_NAME`은 계속 우선하므로 기존 배포의 `Delta Notes` 이름도 변경하려면 해당 환경변수를 갱신합니다.
+
+자동 감지 근거는 [AWS EC2 식별 문서](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/identify_ec2_instances.html)와 [GCP OS 기반 감지 문서](https://docs.cloud.google.com/compute/docs/instances/detect-compute-engine)입니다. 장비 정보는 테마용 단서로만 사용합니다.
 
 ### BE
 
@@ -146,7 +178,7 @@ API 주소나 포트를 변경해도 FE 소스 수정과 이미지 재빌드가 
 | `FE_IMAGE` | `delta-sample-frontend:local` | FE 이미지 이름 및 태그 |
 | `BE_IMAGE` | `delta-sample-backend:local` | BE 이미지 이름 및 태그 |
 
-`API_PROTOCOL`, `API_ENDPOINT`, `API_TIMEOUT_MS`, `APP_NAME`, `APP_ENV`, `APP_VERSION`도 루트 `.env` 또는 CI/CD 환경변수로 주입합니다. 개별 컨테이너 실행 시에는 위 서비스별 변수를 직접 전달합니다.
+`API_PROTOCOL`, `API_ENDPOINT`, `API_TIMEOUT_MS`, `APP_NAME`, `CLOUD_PROVIDER`, `APP_ENV`, `APP_VERSION`도 루트 `.env` 또는 CI/CD 환경변수로 주입합니다. 개별 컨테이너 실행 시에는 위 서비스별 변수를 직접 전달합니다.
 
 ## CI/CD에서 같은 이미지 재사용
 
@@ -200,9 +232,10 @@ docker compose up -d --no-build --wait
 | GET / HEAD | `/healthz` | 각 FE/BE 프로세스 상태 |
 | GET | `/runtime-config.json` | FE 공개 설정 |
 | GET | `/api/health` | BE 버전, 환경, 인스턴스, 가동 시간 |
-| GET | `/api/notes` | 메모 목록, 최신순 |
-| POST | `/api/notes` | 메모 생성. JSON `title`, 선택 `content` |
-| DELETE | `/api/notes/:id` | 메모 삭제 |
+| GET | `/api/notes` | 게시글 목록, 최신순 |
+| POST | `/api/notes` | 게시글 생성. JSON `title`, 선택 `content` |
+| GET | `/api/notes/:id` | 게시글 상세. JSON `note` |
+| DELETE | `/api/notes/:id` | 기존 호환용 삭제 API. UI에서는 제공하지 않음 |
 
 ```sh
 curl -f http://localhost:3000/healthz
@@ -215,7 +248,7 @@ curl -f http://localhost:3000/api/notes \
 
 FE의 `/healthz`는 FE만 검사합니다. 실제 BE 연결은 FE의 `/api/health`로 검사합니다. `API_ENDPOINT`가 다르면 해당 경로도 바꿉니다. `502`는 BE 연결 실패, `504`는 `API_TIMEOUT_MS` 초과입니다.
 
-메모 제목은 1~120자, 내용은 최대 2,000자, JSON 요청은 최대 16 KiB입니다. BE 프로세스당 최대 1,000개의 메모를 보관합니다.
+게시글 제목은 1~120자, 내용은 최대 2,000자, JSON 요청은 최대 16 KiB입니다. 최대 1,000개의 게시글을 보관하며 memory는 프로세스, PostgreSQL은 공유 테이블 기준으로 제한합니다. API와 DB의 `notes` 명칭은 기존 데이터와 호환성을 위해 유지합니다.
 
 요청 로그는 stdout에 JSON으로 출력합니다. `service`, `requestId`, `method`, `path`, `status`, `durationMs`로 연결을 추적할 수 있습니다. 프록시는 FE와 BE에 같은 `X-Request-Id`를 전달합니다. 요청 본문과 쿼리 문자열은 로그에 기록하지 않습니다. `SIGTERM` 시 진행 중인 요청을 최대 5초 기다리고 종료합니다.
 
@@ -226,12 +259,14 @@ npm run check
 npm test
 ```
 
-HTTP 테스트는 임시 localhost 포트를 사용합니다. 메모 CRUD, 런타임 설정 및 API 경로 변경, 헬스체크, 입력 검증, CORS, 프록시 연결 실패와 제한 시간을 검증합니다. 독립 빌드 테스트는 각 프로젝트를 별도 임시 폴더에서 빌드한 뒤 소스 트리를 제거하고 산출물만으로 실행합니다. 실제 컨테이너와 클라우드에서의 결과는 이 테스트와 별도로 확인해야 합니다.
+HTTP 테스트는 임시 localhost 포트를 사용합니다. 게시글 생성/목록/상세/기존 삭제 API, 런타임 설정 및 API 경로 변경, 테마 설정과 OS 감지, 헬스체크, 입력 검증, CORS, 프록시 연결 실패와 제한 시간을 검증합니다. 독립 빌드 테스트는 각 프로젝트를 별도 임시 폴더에서 빌드한 뒤 소스 트리를 제거하고 산출물만으로 실행합니다. 실제 컨테이너와 클라우드에서의 결과는 이 테스트와 별도로 확인해야 합니다.
 
-설계 승인 및 실제 실행한 검증은 [AI-DLC 기록](docs/ai-dlc/sample-app.md)에 정리합니다.
+현재 설계 승인과 실제 실행한 검증은 [게시판 AI-DLC 기록](docs/ai-dlc/bulletin-board.md)에 정리합니다. 이전 FE/BE 구현은 [기존 앱 기록](docs/ai-dlc/sample-app.md), DB 저장은 [PostgreSQL 기록](docs/ai-dlc/postgresql-storage.md)을 따릅니다.
 
 참고: [Node.js HTTP](https://nodejs.org/docs/latest-v24.x/api/http.html), [Node.js 환경변수](https://github.com/nodejs/node/blob/main/doc/api/environment_variables.md), [Docker GitHub Actions](https://docs.docker.com/build/ci/github-actions/multi-platform/).
 
 ## AWS EC2와 RDS 배포
 
 `delta-network-gateway` 저장소의 `terraform/workload/`와 `deploy/workload/`에서 인프라와 개별 산출물 배포를 관리합니다. FE/BE는 x86 EC2 각 1대, DB는 RDS PostgreSQL이며 공개 ALB를 통해 FE에 접속합니다. 앱은 AWS SDK 없이 환경변수로 연결하고 secret 조회는 EC2 wrapper가 담당합니다. 현재 실제 배포 상태는 [PostgreSQL 작업 기록](docs/ai-dlc/postgresql-storage.md)을 따릅니다.
+
+게시판 버전은 새 단건 조회 API가 필요하므로 BE -> FE 순서로 배포합니다. 롤백은 FE -> BE 순서로 이전 산출물에 복귀합니다. DB 스키마와 기존 데이터는 변경하지 않습니다. 이번 게시판 변경의 실제 배포 여부는 [게시판 기록](docs/ai-dlc/bulletin-board.md)을 확인하세요.

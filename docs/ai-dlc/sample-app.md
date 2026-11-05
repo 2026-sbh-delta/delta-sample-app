@@ -1,5 +1,7 @@
 # FE/BE 샘플 앱
 
+2026-11-05: 현재 게시판 UI와 단건 조회, CSP 테마 변경 및 실제 검증 상태는 [게시판 기록](bulletin-board.md)을 따른다. 아래는 이전 메모 앱의 설계와 검증 이력이다.
+
 2026-11-05: PostgreSQL 후속 구현을 승인받았다. 아래 내용은 기존 DB 없는 구현의 범위와 검증 기록이며 현재 변경과 검증은 [PostgreSQL 기록](postgresql-storage.md)을 따른다.
 
 ## Ideation
