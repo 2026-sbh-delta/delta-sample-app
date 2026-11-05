@@ -34,7 +34,7 @@ for (const service of ['frontend', 'backend']) {
     const module = await import(pathToFileURL(join(artifact, 'server.mjs')).href);
     const create = service === 'frontend' ? module.createFrontend : module.createBackend;
     const { server } = create({
-      env: { APP_ENV: 'artifact-test', APP_VERSION: 'runtime-version', API_ENDPOINT: '/isolated/api' },
+      env: { APP_ENV: 'artifact-test', APP_VERSION: 'runtime-version', API_ENDPOINT: '/isolated/api', CLOUD_PROVIDER: 'onprem' },
       logger: () => {},
     });
     server.listen(0, '127.0.0.1');
@@ -53,11 +53,15 @@ for (const service of ['frontend', 'backend']) {
       const config = await (await fetch(`${url}/runtime-config.json`)).json();
       assert.equal(config.environment, 'artifact-test');
       assert.equal(config.apiEndpoint, '/isolated/api');
+      assert.equal(config.cloudProvider, 'onprem');
+      assert.equal(config.appName, 'Delta Board');
     } else {
       const created = await fetch(`${url}/isolated/api/notes`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'isolated build' }),
       });
       assert.equal(created.status, 201);
+      const { note } = await created.json();
+      assert.deepEqual(await (await fetch(`${url}/isolated/api/notes/${note.id}`)).json(), { note });
     }
   });
 }

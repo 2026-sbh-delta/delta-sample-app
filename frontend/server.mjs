@@ -81,6 +81,7 @@ export function createFrontend({ env = process.env, logger = console.log } = {})
           environment: config.environment,
           version: config.version,
           apiEndpoint: config.apiEndpoint,
+          cloudProvider: config.cloudProvider,
         });
         return;
       }

@@ -6,6 +6,7 @@ import { createBackend } from '../backend/server.mjs';
 import { createFrontend } from '../frontend/server.mjs';
 import { commonConfig } from '../backend/lib/config.mjs';
 import { frontendConfig } from '../frontend/lib/config.mjs';
+import { cloudProvider } from '../frontend/lib/provider.mjs';
 
 async function listen(t, server) {
   server.listen(0, '127.0.0.1');
@@ -17,7 +18,7 @@ async function listen(t, server) {
   return `http://127.0.0.1:${server.address().port}`;
 }
 
-async function setup(t, { endpoint = '/api', cors = '' } = {}) {
+async function setup(t, { endpoint = '/api', cors = '', provider = 'default' } = {}) {
   const backend = createBackend({
     env: { API_ENDPOINT: endpoint, APP_ENV: 'test', APP_VERSION: 'be-test', CORS_ORIGINS: cors },
     logger: () => {},
@@ -27,6 +28,7 @@ async function setup(t, { endpoint = '/api', cors = '' } = {}) {
     env: {
       API_HOST: '127.0.0.1', API_PORT: String(backend.server.address().port), API_ENDPOINT: endpoint,
       APP_ENV: 'test', APP_VERSION: 'fe-test', APP_NAME: 'Test Notes', PRIVATE_TOKEN: 'never-public',
+      CLOUD_PROVIDER: provider,
     },
     logger: () => {},
   });
@@ -55,9 +57,14 @@ test('FE proxy supports create, list and delete with real backend requests', asy
 
   const listed = await fetch(`${beUrl}/api/notes`);
   assert.deepEqual(await listed.json(), { notes: [note] });
+  const detail = await fetch(`${feUrl}/api/notes/${note.id}`);
+  assert.equal(detail.status, 200);
+  assert.equal(detail.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await detail.json(), { note });
   const removed = await fetch(`${feUrl}/api/notes/${note.id}`, { method: 'DELETE', headers: { Origin: feUrl } });
   assert.equal(removed.status, 204);
   assert.deepEqual(await (await fetch(`${feUrl}/api/notes`)).json(), { notes: [] });
+  assert.equal((await fetch(`${feUrl}/api/notes/${note.id}`)).status, 404);
 });
 
 test('list returns newest notes first', async (t) => {
@@ -72,7 +79,10 @@ test('runtime API endpoint and target port change without frontend asset changes
   const { feUrl, beUrl } = await setup(t, { endpoint: '/v2/demo' });
   const config = await (await fetch(`${feUrl}/runtime-config.json`)).json();
   assert.equal(config.apiEndpoint, '/v2/demo');
-  assert.equal((await fetch(`${feUrl}/v2/demo/notes`, post({ title: 'configured' }))).status, 201);
+  const created = await fetch(`${feUrl}/v2/demo/notes`, post({ title: 'configured' }));
+  assert.equal(created.status, 201);
+  const { note } = await created.json();
+  assert.deepEqual(await (await fetch(`${feUrl}/v2/demo/notes/${note.id}`)).json(), { note });
   assert.equal((await fetch(`${beUrl}/v2/demo/notes`)).status, 200);
   assert.equal((await fetch(`${feUrl}/api/notes`)).status, 404);
   assert.equal((await fetch(`${beUrl}/api/notes`)).status, 404);
@@ -83,8 +93,46 @@ test('runtime config exposes only public fields and disables caching', async (t)
   const response = await fetch(`${feUrl}/runtime-config.json`);
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.deepEqual(await response.json(), {
-    appName: 'Test Notes', environment: 'test', version: 'fe-test', apiEndpoint: '/api',
+    appName: 'Test Notes', environment: 'test', version: 'fe-test', apiEndpoint: '/api', cloudProvider: 'default',
   });
+});
+
+test('provider themes change with runtime settings while frontend assets stay identical', async (t) => {
+  let baseline;
+  for (const provider of ['default', 'aws', 'gcp', 'onprem']) {
+    const { feUrl } = await setup(t, { provider });
+    const config = await (await fetch(`${feUrl}/runtime-config.json`)).json();
+    assert.equal(config.cloudProvider, provider);
+    const assets = await Promise.all(['/', '/app.js', '/styles.css'].map(async (path) => (await fetch(`${feUrl}${path}`)).text()));
+    if (baseline) assert.deepEqual(assets, baseline);
+    else baseline = assets;
+  }
+});
+
+test('provider detection uses Linux host hints, supports explicit overrides, and tolerates hidden DMI', () => {
+  const host = (values) => ({
+    platform: 'linux',
+    readFile: (path) => {
+      const value = values[path.split('/').at(-1)];
+      if (value === undefined) throw new Error('DMI is not readable');
+      return value;
+    },
+  });
+  assert.equal(cloudProvider({}, host({ sys_vendor: 'Amazon EC2\n', product_name: 't3.small' })), 'aws');
+  assert.equal(cloudProvider({}, host({ board_asset_tag: 'i-0123456789abcdef0\n' })), 'aws');
+  assert.equal(cloudProvider({}, host({ product_name: 'Google Compute Engine\n', sys_vendor: 'Google' })), 'gcp');
+  assert.equal(cloudProvider({ CLOUD_PROVIDER: ' auto ' }, host({ product_name: 'Google Compute Engine' })), 'gcp');
+  assert.equal(cloudProvider({ CLOUD_PROVIDER: '' }, host({ sys_vendor: 'Amazon EC2' })), 'aws');
+  for (const values of [{}, { sys_vendor: 'VMware, Inc.', product_name: 'VMware Virtual Platform' }, { board_asset_tag: 'i-unrelated' }]) {
+    assert.equal(cloudProvider({}, host(values)), 'default');
+  }
+  let reads = 0;
+  const trackRead = () => { reads += 1; return ''; };
+  assert.equal(cloudProvider({ CLOUD_PROVIDER: ' OnPrem ' }, { platform: 'linux', readFile: trackRead }), 'onprem');
+  assert.equal(cloudProvider({ CLOUD_PROVIDER: 'default' }, { platform: 'linux', readFile: trackRead }), 'default');
+  assert.equal(cloudProvider({}, { platform: 'darwin', readFile: trackRead }), 'default');
+  assert.equal(reads, 0, 'Explicit settings and non-Linux hosts must not read DMI');
+  assert.throws(() => cloudProvider({ CLOUD_PROVIDER: 'unknown' }), /CLOUD_PROVIDER/);
 });
 
 test('health checks identify services and independently injected versions', async (t) => {
@@ -147,6 +195,14 @@ test('unsupported methods and missing notes return useful errors', async (t) => 
   const missing = await fetch(`${feUrl}/api/notes/no-such-note`, { method: 'DELETE' });
   assert.equal(missing.status, 404);
   assert.equal((await missing.json()).error.code, 'NOTE_NOT_FOUND');
+  for (const id of ['no-such-note', '00000000-0000-4000-8000-000000000000', encodeURIComponent("' OR 1=1 --"), 'extra/path']) {
+    const detail = await fetch(`${feUrl}/api/notes/${id}`);
+    assert.equal(detail.status, 404);
+    assert.equal((await detail.json()).error.code, 'NOTE_NOT_FOUND');
+  }
+  const detailMethod = await fetch(`${feUrl}/api/notes/no-such-note`, post({}));
+  assert.equal(detailMethod.status, 405);
+  assert.equal(detailMethod.headers.get('allow'), 'GET, DELETE');
 });
 
 test('backend CORS allows only configured origins including preflight', async (t) => {
@@ -231,6 +287,8 @@ test('invalid deployment environment values fail on startup', () => {
   assert.throws(() => frontendConfig({ API_HOST: 'http://backend:8080' }), /API_HOST/);
   assert.throws(() => frontendConfig({ API_PROTOCOL: 'ftp' }), /API_PROTOCOL/);
   assert.throws(() => frontendConfig({ API_TIMEOUT_MS: '0' }), /API_TIMEOUT_MS/);
+  assert.throws(() => frontendConfig({ CLOUD_PROVIDER: 'invalid' }), /CLOUD_PROVIDER/);
+  assert.equal(frontendConfig({ CLOUD_PROVIDER: 'default' }).appName, 'Delta Board');
   assert.equal(frontendConfig({ API_HOST: '[::1]' }).apiOrigin.hostname, '[::1]');
 });
 

@@ -1,4 +1,6 @@
 // Read deployment configuration at process startup, independently of the backend.
+import { cloudProvider } from './provider.mjs';
+
 export function integer(env, name, fallback, max = 65535) {
   const value = env[name] ?? String(fallback);
   if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > max) {
@@ -34,7 +36,8 @@ export function frontendConfig(env) {
   }
   return {
     ...config,
-    appName: env.APP_NAME ?? 'Delta Notes',
+    appName: env.APP_NAME ?? 'Delta Board',
+    cloudProvider: cloudProvider(env),
     apiOrigin: new URL(`${apiProtocol}://${apiHost}:${integer(env, 'API_PORT', 8080)}`),
     apiTimeoutMs: integer(env, 'API_TIMEOUT_MS', 5000, 120000),
   };

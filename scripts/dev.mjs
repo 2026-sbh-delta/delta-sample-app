@@ -24,4 +24,4 @@ for (const service of ['backend', 'frontend']) {
 }
 process.once('SIGINT', () => stop());
 process.once('SIGTERM', () => stop());
-console.log('Delta Notes: http://localhost:3000 (default FE port; override in frontend/.env)');
+console.log('Delta Board: http://localhost:3000 (default FE port; override in frontend/.env)');

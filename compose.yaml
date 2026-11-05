@@ -26,7 +26,8 @@ services:
       API_PROTOCOL: ${API_PROTOCOL:-http}
       API_ENDPOINT: ${API_ENDPOINT:-/api}
       API_TIMEOUT_MS: ${API_TIMEOUT_MS:-5000}
-      APP_NAME: ${APP_NAME:-Delta Notes}
+      APP_NAME: ${APP_NAME:-Delta Board}
+      CLOUD_PROVIDER: ${CLOUD_PROVIDER:-auto}
       APP_ENV: ${APP_ENV:-local}
       APP_VERSION: ${APP_VERSION:-dev}
     ports:
