@@ -33,6 +33,8 @@ export function postgresConfig(env) {
 
 export function createStorage(env) {
   const mode = env.STORAGE_BACKEND ?? 'memory';
+  const deployed = ['staging', 'production'].includes(env.APP_ENV);
+  if (deployed && mode !== 'postgres') throw new Error('STORAGE_BACKEND must be postgres in staging and production');
   if (mode === 'memory') {
     const notes = new Map();
     return {
@@ -66,7 +68,18 @@ export function createStorage(env) {
   };
   return {
     mode,
-    health: () => database(async (db) => { await db.query('SELECT 1 FROM delta_notes.notes LIMIT 1'); }),
+    health: () => database(async (db) => {
+      const databaseVersionNum = await postgresVersion(db);
+      if (deployed && Math.floor(databaseVersionNum / 10000) !== 18) throw unavailable();
+      await db.query('SELECT position, id, title, content, created_at FROM delta_notes.notes LIMIT 1');
+      if (env.APP_ENV === 'staging') {
+        const value = (await db.query('SELECT count(*) AS "remainingRows" FROM delta_notes.notes')).rows[0]?.remainingRows;
+        const remainingRows = Number(value);
+        if (!/^\d+$/.test(String(value)) || !Number.isSafeInteger(remainingRows)) throw unavailable();
+        return { databaseVersionNum, remainingRows };
+      }
+      return { databaseVersionNum };
+    }),
     close: async () => { if (poolPromise) await (await poolPromise).end(); },
     list: () => database(async (db) => (await db.query(
       'SELECT id, title, content, created_at AS "createdAt" FROM delta_notes.notes ORDER BY position DESC',
@@ -98,4 +111,13 @@ export function createStorage(env) {
       return database(async (db) => (await db.query('DELETE FROM delta_notes.notes WHERE id = $1', [id])).rowCount === 1);
     },
   };
+}
+
+// SHOW returns text with pg; never substitute a configured desired version.
+export async function postgresVersion(client) {
+  const value = (await client.query('SHOW server_version_num')).rows[0]?.server_version_num;
+  if (!/^\d+$/.test(String(value)) || !Number.isSafeInteger(Number(value)) || Number(value) < 10000) {
+    throw unavailable();
+  }
+  return Number(value);
 }

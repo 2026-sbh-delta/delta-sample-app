@@ -195,11 +195,11 @@ docker build -t delta-sample-frontend:demo-1 ./frontend
 docker network create delta-demo
 docker run -d --name delta-backend --network delta-demo \
   -e PORT=8080 -e API_ENDPOINT=/api \
-  -e APP_ENV=staging -e APP_VERSION=demo-1 \
+  -e APP_ENV=local -e APP_VERSION=demo-1 \
   delta-sample-backend:demo-1
 docker run -d --name delta-frontend --network delta-demo -p 3000:3000 \
   -e PORT=3000 -e API_HOST=delta-backend -e API_PORT=8080 \
-  -e API_ENDPOINT=/api -e APP_ENV=staging -e APP_VERSION=demo-1 \
+  -e API_ENDPOINT=/api -e APP_ENV=local -e APP_VERSION=demo-1 \
   delta-sample-frontend:demo-1
 ```
 
@@ -270,3 +270,54 @@ HTTP 테스트는 임시 localhost 포트를 사용합니다. 게시글 생성/�
 `delta-network-gateway` 저장소의 `terraform/workload/`와 `deploy/workload/`에서 인프라와 개별 산출물 배포를 관리합니다. FE/BE는 x86 EC2 각 1대, DB는 RDS PostgreSQL이며 공개 ALB를 통해 FE에 접속합니다. 앱은 AWS SDK 없이 환경변수로 연결하고 secret 조회는 EC2 wrapper가 담당합니다. 현재 실제 배포 상태는 [PostgreSQL 작업 기록](docs/ai-dlc/postgresql-storage.md)을 따릅니다.
 
 게시판 버전은 새 단건 조회 API가 필요하므로 BE -> FE 순서로 배포합니다. 롤백은 FE -> BE 순서로 이전 산출물에 복귀합니다. DB 스키마와 기존 데이터는 변경하지 않습니다. 이번 게시판 변경의 실제 배포 여부는 [게시판 기록](docs/ai-dlc/bulletin-board.md)을 확인하세요.
+
+
+## 운영 전용 Compose (2026-11-06)
+
+운영 배포 입력은 `compose.production.yaml`입니다. 개발용 `compose.yaml`의 build·memory 기본값을 운영에 사용하지 않습니다. FE3000만 공개하고 BE8080은 Compose 내부에서만 접근합니다. 두 이미지는 CI 산출물인 `ref@sha256:<64hex>`, `APP_VERSION`은 full40 commit SHA를 사용합니다. Compose의 변수 치환은 참조 형식을 검증하지 않으므로 **배포 호스트가 두 이미지의 digest 고정 형식·묶음·실행 digest를 검사해야 합니다.**
+
+공통 파일은 `extends.file`로 `compose.production.aws.yaml` 또는 `compose.production.gcp.yaml`을 읽습니다. 세 파일을 같은 디렉터리에 배치하고 공통 파일 하나를 `-f`로 지정합니다. 별도 `LOG_DRIVER` 값 대신 `CLOUD_PROVIDER`가 로그 드라이버를 결정합니다. AWS는 `awslogs`, GCP는 `gcplogs`이며 모두 `mode=non-blocking`, 버퍼4m입니다. 로그 드라이버 생성·인증 실패는 배포 실패이고, 실행 중 전송 장애 때 중앙 수신이 확인되지 않으면 로그 연동 완료로 보고하지 않습니다.
+
+| 배포 입력 | 계약 |
+| --- | --- |
+| `FE_IMAGE`, `BE_IMAGE` | 필수. CI에서 만든 digest 고정 이미지 쌍. 운영 build/import 없음 |
+| `APP_VERSION` | 필수. FE·BE에 같은 full40 SHA. staging/production에서는 앱도 형식을 검사 |
+| `CLOUD_PROVIDER` | 필수. 이 Compose는 `aws` 또는 `gcp` 지원 |
+| `FE_IMAGE_DIGEST`, `BE_IMAGE_DIGEST` | 각각 앱의 `IMAGE_DIGEST` 진단값으로 주입. 실행 이미지의 증거를 대신하지 않음 |
+| `SERVED_BY` | 선택. 미설정 시 cloudProvider 사용 |
+| `BE_SECRET_FILE` | 필수. 호스트가 조회·보호한 **비밀번호 한 개의 원문 파일** 경로. env 파일이 아님 |
+| `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` | 호스트의 승인된 DB 인벤토리. 기본값은 loopback5432, `delta_notes`, `delta_notes_app` |
+| `AWS_REGION`, `AWS_LOG_GROUP` | AWS 필수. 기존 `/delta/workload/…` 로그 그룹을 호스트가 검증·준비 |
+| `DB_CA_FILE`, `PGTLS_SERVERNAME` | AWS CA 파일과 실제 DB endpoint 검증 이름. 기본 CA 파일 `/etc/delta-sample/rds-ca.pem` |
+| `GCP_PROJECT_ID` | GCP 필수. 승인된 앱 로그 프로젝트 `term2-delta` |
+
+BE만 `/run/secrets/db_password`를 마운트하고 기존 방식의 wrapper가 내부 `PGPASSWORD`로 읽은 뒤 서버를 exec합니다. Compose `environment`·`env_file`에는 비밀번호나 연결 문자열을 넣지 않습니다. 파일 이름의 `.env` 확장자와 관계없이 파일 내용은 비밀번호 한 개여야 합니다. 호스트는 BE 이미지의 `node` 사용자 UID1000이 읽을 수 있는 소유권과 제한된 권한을 준비해야 합니다. AWS CA는 별도의 읽기 전용 파일이며 GCP에는 RDS CA를 마운트하지 않습니다. 앱은 직접 secret 서비스에 접근하지 않습니다.
+
+AWS는 CA·호스트 검증 TLS를 사용합니다. GCP는 기존 SQL Auth Proxy를 **BE의 네트워크 namespace에 공유**하고 `PGHOST=127.0.0.1`, `PGSSLMODE=disable`로 연결합니다. Proxy의 DB 연결 암호화와 앱 DB 사용자/비밀번호 인증은 이어집니다. 관리형 DB나 Proxy를 이 앱 Compose가 생성하지 않습니다. 배포 호스트가 기존 Proxy를 포함한 override를 생성하고 같은 Compose 프로젝트로 관리합니다. 핵심 설정은 아래와 같습니다.
+
+```yaml
+services:
+  proxy:
+    image: ${SQL_PROXY_IMAGE:?digest-pinned proxy image required}
+    network_mode: service:backend
+    depends_on:
+      backend:
+        condition: service_started
+    command: ["--address", "127.0.0.1", "--port", "5432", "--structured-logs", "${CLOUD_SQL_CONNECTION_NAME:?}"]
+```
+
+호스트가 기존 연결의 PSC 옵션·서비스 계정·권한·재시작·로그 설정을 유지합니다. Proxy는 BE가 healthy가 되기를 기다리면 안 됩니다. BE wrapper는 loopback TCP 준비를 최대 약120초 기다린 뒤, 서버가 실제 DB18과 앱 필수 열을 확인합니다. BE를 재생성할 때 Proxy도 재생성하여 새 namespace에 연결하고, 두 서비스와 DB의 준비를 확인한 뒤 FE를 열어야 합니다. 호스트가 추가한 Proxy에도 non-blocking gcplogs를 설정합니다.
+
+호스트의 승인된 배포 스크립트가 비밀 없는 공개 env 파일로 다음 순서의 검증을 수행합니다. GCP는 호스트가 만든 Proxy override도 `-f`로 함께 전달합니다. 이 문서 작성 중 아래 운영 명령을 실행하지 않았습니다.
+
+```sh
+docker compose --env-file /path/to/public.env -f compose.production.yaml config --quiet
+docker compose --env-file /path/to/public.env -f compose.production.yaml pull
+docker compose --env-file /path/to/public.env -f compose.production.yaml up -d --no-build --wait --wait-timeout 180
+```
+
+운영에는 `APP_RESET_DATABASE`를 주입하지 않습니다. 앱 시작은 migration·데이터 삭제를 수행하지 않습니다. staging/production BE는 postgres 외 저장 모드를 거부하며 실제 `SHOW server_version_num`의 메이저가18이고 앱 필수 열을 조회할 수 있어야 healthy입니다. 로컬 memory·기존 PG 통합 시험의 버전 계약은 유지합니다.
+
+FE `/healthz`의 `version`·`commit`·`digest`·`cloudProvider`·`servedBy`는 FE 진단이고, FE `/api/health`는 BE의 같은 진단과 `storage=postgres`, 숫자 `databaseVersionNum`을 전달합니다. FE HTTP `/healthz` 자체는 기존대로 BE 장애와 독립적입니다. 운영 Compose의 FE 컨테이너 healthcheck는 두 경로를 모두 검사합니다. 호스트는 두 실행 이미지의 관측 digest와 실제 DB 응답을 별도로 검증해야 합니다.
+
+스테이징 reset 사용법은 [BE 안내](backend/README.md), 구현·로컬 검증과 미실행 범위는 [배포 작업 기록](docs/ai-dlc/compose-delivery.md)을 따릅니다.

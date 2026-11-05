@@ -10,10 +10,18 @@ export function createBackend({ env = process.env, logger = console.log } = {}) 
   const origins = (env.CORS_ORIGINS ?? '').split(',').map((origin) => origin.trim()).filter(Boolean);
   const storage = createStorage(env);
   const started = performance.now();
+  const observeWrites = config.environment === 'staging' && storage.mode === 'postgres';
+  let activeWrites = 0;
 
   const server = createServer(async (req, res) => {
+    let trackedWrite = false;
     try {
       const path = requestContext(req, res, 'backend', logger);
+      if (observeWrites && ((req.method === 'POST' && path === `${config.apiEndpoint}/notes`)
+          || (req.method === 'DELETE' && path.startsWith(`${config.apiEndpoint}/notes/`)))) {
+        activeWrites += 1;
+        trackedWrite = true;
+      }
       const origin = req.headers.origin;
       if (origin) {
         res.setHeader('Vary', 'Origin');
@@ -33,15 +41,21 @@ export function createBackend({ env = process.env, logger = console.log } = {}) 
 
       if (path === '/healthz' || path === `${config.apiEndpoint}/health`) {
         allow(req, res, ['GET', 'HEAD']);
-        await storage.health();
+        const databaseHealth = await storage.health();
         json(res, 200, {
           status: 'ok',
           service: 'backend',
           environment: config.environment,
           version: config.version,
+          commit: config.version,
+          digest: config.digest,
+          cloudProvider: config.cloudProvider,
+          servedBy: config.servedBy,
           instance: hostname(),
           uptimeSeconds: Math.floor((performance.now() - started) / 1000),
           storage: storage.mode,
+          ...databaseHealth,
+          ...(observeWrites ? { activeWrites } : {}),
         });
         return;
       }
@@ -54,6 +68,7 @@ export function createBackend({ env = process.env, logger = console.log } = {}) 
         }
 
         const body = await readJson(req);
+        if (req.aborted || res.destroyed) return;
         if (!body || Array.isArray(body) || typeof body !== 'object'
             || typeof body.title !== 'string' || !body.title.trim()
             || body.title.trim().length > 120
@@ -90,6 +105,10 @@ export function createBackend({ env = process.env, logger = console.log } = {}) 
       throw new HttpError(404, 'NOT_FOUND', '요청한 경로를 찾지 못했어요.');
     } catch (error) {
       fail(res, error);
+    } finally {
+      // Await the handler's DB work even after a socket closes. Releasing this
+      // process-local request counter does not assert cancellation of DB writes.
+      if (trackedWrite) activeWrites -= 1;
     }
   });
   server.requestTimeout = 10000;

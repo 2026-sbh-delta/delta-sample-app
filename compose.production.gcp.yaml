@@ -1,0 +1,13 @@
+# Inherited by compose.production.yaml; proxy creation belongs to the host.
+services:
+  backend:
+    environment:
+      PGSSLMODE: disable
+    logging: &logging
+      driver: gcplogs
+      options:
+        gcp-project: ${GCP_PROJECT_ID:?GCP_PROJECT_ID is required}
+        mode: non-blocking
+        max-buffer-size: 4m
+  frontend:
+    logging: *logging

@@ -3,7 +3,8 @@ WORKDIR /app
 COPY package.json package-lock.json server.mjs ./
 COPY lib/ ./lib/
 COPY scripts/ ./scripts/
-RUN npm run build
+COPY migrations/ ./migrations/
+RUN npm run build -- --require-migrations
 
 FROM node:24-alpine
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8080

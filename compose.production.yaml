@@ -1,0 +1,79 @@
+# App images are CI-produced ref@sha256:<64hex>; the host validates the pair.
+# Companion files hold only provider-specific logging, selected via extends.
+services:
+  backend:
+    extends:
+      file: ./compose.production.${CLOUD_PROVIDER:?CLOUD_PROVIDER is required}.yaml
+      service: backend
+    image: ${BE_IMAGE:?BE_IMAGE must be a digest-pinned reference}
+    platform: linux/amd64
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8080"
+      API_ENDPOINT: /api
+      APP_ENV: production
+      APP_VERSION: ${APP_VERSION:?APP_VERSION must be a full40 commit SHA}
+      IMAGE_DIGEST: ${BE_IMAGE_DIGEST:-}
+      CLOUD_PROVIDER: ${CLOUD_PROVIDER:?}
+      SERVED_BY: ${SERVED_BY:-${CLOUD_PROVIDER}}
+      STORAGE_BACKEND: postgres
+      PGHOST: ${PGHOST:-127.0.0.1}
+      PGPORT: ${PGPORT:-5432}
+      PGDATABASE: ${PGDATABASE:-delta_notes}
+      PGUSER: ${PGUSER:-delta_notes_app}
+      PGSSLROOTCERT: /run/db-ca.pem
+      PGTLS_SERVERNAME: ${PGTLS_SERVERNAME:-${PGHOST:-127.0.0.1}}
+    entrypoint: ["/bin/sh", "/app/scripts/backend-entrypoint.sh"]
+    command: ["node", "server.mjs"]
+    secrets: [db_password]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 8s
+      start_period: 125s
+      retries: 6
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  frontend:
+    extends:
+      file: ./compose.production.${CLOUD_PROVIDER:?CLOUD_PROVIDER is required}.yaml
+      service: frontend
+    image: ${FE_IMAGE:?FE_IMAGE must be a digest-pinned reference}
+    platform: linux/amd64
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      API_ENDPOINT: /api
+      API_HOST: backend
+      API_PORT: "8080"
+      API_PROTOCOL: http
+      APP_ENV: production
+      APP_VERSION: ${APP_VERSION:?}
+      IMAGE_DIGEST: ${FE_IMAGE_DIGEST:-}
+      CLOUD_PROVIDER: ${CLOUD_PROVIDER:?}
+      SERVED_BY: ${SERVED_BY:-${CLOUD_PROVIDER}}
+    ports: ["3000:3000"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "Promise.all(['/healthz','/api/health'].map(p=>fetch('http://127.0.0.1:3000'+p))).then(rs=>process.exit(rs.every(r=>r.ok)?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 8s
+      start_period: 5s
+      retries: 6
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+secrets:
+  db_password:
+    file: ${BE_SECRET_FILE:?BE_SECRET_FILE must name a host-managed password-only file}

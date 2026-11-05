@@ -73,7 +73,11 @@ export function createFrontend({ env = process.env, logger = console.log } = {})
       }
       allow(req, res, ['GET', 'HEAD']);
       if (path === '/healthz') {
-        json(res, 200, { status: 'ok', service: 'frontend', version: config.version });
+        json(res, 200, {
+          status: 'ok', service: 'frontend', version: config.version,
+          commit: config.version, digest: config.digest,
+          cloudProvider: config.cloudProvider, servedBy: config.servedBy,
+        });
         return;
       }
       if (path === '/runtime-config.json') {

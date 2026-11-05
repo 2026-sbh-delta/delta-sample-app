@@ -11,7 +11,8 @@
     "start": "node --env-file-if-exists=.env server.mjs",
     "start:built": "node --env-file-if-exists=.env dist/server.mjs",
     "check": "node scripts/build.mjs --check",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "reset:staging": "node scripts/reset-db.mjs"
   },
   "dependencies": {
     "pg": "8.23.1"

@@ -10,6 +10,9 @@ export function integer(env, name, fallback, max = 65535) {
 }
 
 export function commonConfig(env, defaultPort) {
+  if (['staging', 'production'].includes(env.APP_ENV) && !/^[a-f0-9]{40}$/.test(env.APP_VERSION ?? '')) {
+    throw new Error('APP_VERSION must be a full40 commit SHA in staging and production');
+  }
   const apiEndpoint = (env.API_ENDPOINT ?? '/api').replace(/\/+$/, '');
   if (!/^\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(apiEndpoint)
       || apiEndpoint === '/healthz') {
@@ -26,6 +29,7 @@ export function commonConfig(env, defaultPort) {
 
 export function frontendConfig(env) {
   const config = commonConfig(env, 3000);
+  const provider = cloudProvider(env);
   const apiProtocol = env.API_PROTOCOL ?? 'http';
   const apiHost = env.API_HOST ?? '127.0.0.1';
   if (!['http', 'https'].includes(apiProtocol)) {
@@ -37,7 +41,9 @@ export function frontendConfig(env) {
   return {
     ...config,
     appName: env.APP_NAME ?? 'Delta Board',
-    cloudProvider: cloudProvider(env),
+    cloudProvider: provider,
+    servedBy: env.SERVED_BY || provider,
+    digest: env.IMAGE_DIGEST ?? '',
     apiOrigin: new URL(`${apiProtocol}://${apiHost}:${integer(env, 'API_PORT', 8080)}`),
     apiTimeoutMs: integer(env, 'API_TIMEOUT_MS', 5000, 120000),
   };
