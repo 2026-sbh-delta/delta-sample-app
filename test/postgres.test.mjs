@@ -78,13 +78,21 @@ test('actual PostgreSQL API, process restart, least privilege, concurrency and d
     const response = await create(title);
     assert.equal(response.status, 201);
     const { note } = await response.json();
+    assert.deepEqual(await (await fetch(`${app.url}/api/notes/${note.id}`)).json(), { note });
     await stop(app.child);
     app = await start();
     const health = await (await fetch(`${app.url}/api/health`)).json();
     assert.equal(health.storage, 'postgres');
     assert.equal((await (await fetch(`${app.url}/api/notes`)).json()).notes[0].title, title);
+    assert.deepEqual(await (await fetch(`${app.url}/api/notes/${note.id}`)).json(), { note });
+    for (const id of ['not-a-uuid', '00000000-0000-4000-8000-000000000000', encodeURIComponent("' OR 1=1 --")]) {
+      const detail = await fetch(`${app.url}/api/notes/${id}`);
+      assert.equal(detail.status, 404);
+      assert.equal((await detail.json()).error.code, 'NOTE_NOT_FOUND');
+    }
     assert.equal((await fetch(`${app.url}/api/notes/not-a-uuid`, { method: 'DELETE' })).status, 404);
     assert.equal((await fetch(`${app.url}/api/notes/${note.id}`, { method: 'DELETE' })).status, 204);
+    assert.equal((await fetch(`${app.url}/api/notes/${note.id}`)).status, 404);
     assert.equal((await (await fetch(`${app.url}/api/notes`)).json()).notes.length, 0);
   });
   await t.test('application role can use notes but cannot change schema', async () => {
@@ -108,6 +116,11 @@ test('actual PostgreSQL API, process restart, least privilege, concurrency and d
       const text = await response.text();
       assert.ok(text.includes('STORAGE_UNAVAILABLE'));
       assert.ok(!text.includes('notes_offline') && !text.includes(appPassword));
+      const detail = await fetch(`${app.url}/api/notes/00000000-0000-4000-8000-000000000000`);
+      assert.equal(detail.status, 503);
+      const body = await detail.text();
+      assert.ok(body.includes('STORAGE_UNAVAILABLE'));
+      assert.ok(!body.includes('notes_offline') && !body.includes(appPassword));
     } finally { await admin.query('ALTER TABLE delta_notes.notes_offline RENAME TO notes'); }
     assert.equal((await fetch(`${app.url}/healthz`)).status, 200);
   });

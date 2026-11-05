@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { HttpError } from './http.mjs';
 
 const unavailable = () => new HttpError(503, 'STORAGE_UNAVAILABLE', '저장소에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.');
-const limitReached = () => new HttpError(409, 'NOTE_LIMIT_REACHED', '메모가 1,000개예요. 기존 메모를 삭제한 뒤 추가해 주세요.');
+const limitReached = () => new HttpError(409, 'NOTE_LIMIT_REACHED', '게시글이 1,000개예요. 운영자에게 기존 게시글 정리를 요청해 주세요.');
+const validId = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+const fromRow = (note) => note ? { ...note, createdAt: note.createdAt.toISOString() } : undefined;
 
 export function postgresConfig(env) {
   for (const name of ['PGHOST', 'PGDATABASE', 'PGUSER', 'PGPASSWORD']) {
@@ -36,6 +38,7 @@ export function createStorage(env) {
     return {
       mode, health: async () => {}, close: async () => {},
       list: async () => [...notes.values()].reverse(),
+      get: async (id) => notes.get(id),
       create: async (note) => {
         if (notes.size >= 1000) throw limitReached();
         notes.set(note.id, note);
@@ -67,7 +70,13 @@ export function createStorage(env) {
     close: async () => { if (poolPromise) await (await poolPromise).end(); },
     list: () => database(async (db) => (await db.query(
       'SELECT id, title, content, created_at AS "createdAt" FROM delta_notes.notes ORDER BY position DESC',
-    )).rows.map((note) => ({ ...note, createdAt: note.createdAt.toISOString() }))),
+    )).rows.map(fromRow)),
+    get: (id) => {
+      if (!validId(id)) return Promise.resolve(undefined);
+      return database(async (db) => fromRow((await db.query(
+        'SELECT id, title, content, created_at AS "createdAt" FROM delta_notes.notes WHERE id = $1', [id],
+      )).rows[0]));
+    },
     create: (note) => database(async (db) => {
       const client = await db.connect();
       try {
@@ -85,7 +94,7 @@ export function createStorage(env) {
       } finally { client.release(); }
     }),
     delete: (id) => {
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return false;
+      if (!validId(id)) return false;
       return database(async (db) => (await db.query('DELETE FROM delta_notes.notes WHERE id = $1', [id])).rowCount === 1);
     },
   };

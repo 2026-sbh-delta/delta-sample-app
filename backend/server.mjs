@@ -73,11 +73,15 @@ export function createBackend({ env = process.env, logger = console.log } = {}) 
       }
 
       if (path.startsWith(`${config.apiEndpoint}/notes/`)) {
-        allow(req, res, ['DELETE']);
+        allow(req, res, ['GET', 'DELETE']);
         const id = path.slice(`${config.apiEndpoint}/notes/`.length);
-        if (!await storage.delete(id)) {
-          throw new HttpError(404, 'NOTE_NOT_FOUND', '메모를 찾지 못했어요. 목록을 새로고침해 주세요.');
+        if (req.method === 'GET') {
+          const note = await storage.get(id);
+          if (!note) throw new HttpError(404, 'NOTE_NOT_FOUND', '게시글을 찾지 못했어요. 목록에서 다시 확인해 주세요.');
+          json(res, 200, { note });
+          return;
         }
+        if (!await storage.delete(id)) throw new HttpError(404, 'NOTE_NOT_FOUND', '게시글을 찾지 못했어요. 목록에서 다시 확인해 주세요.');
         res.writeHead(204);
         res.end();
         return;
