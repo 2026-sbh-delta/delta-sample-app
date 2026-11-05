@@ -6,7 +6,7 @@
 - 구현: memory/PostgreSQL 저장 선택, DB 초기화, 독립 dist/Docker 패키징 및 실제 DB 통합 테스트
 - 검증: 새 코드 테스트와 실제 AWS 배포 상태는 [PostgreSQL 기록](ai-dlc/postgresql-storage.md)을 따름
 - 실제 AWS 배포: [공개 앱](http://delta-lab-notes-alb-1242820262.ap-northeast-2.elb.amazonaws.com)의 CRUD/BE 재시작 후 데이터 보존/TLS/IAM/로그 검증 완료
-- 코드 게시와 원격 CI 상태: Git 이력과 해당 커밋의 CI 결과를 확인
+- 코드 CI: 수정 커밋 `5fac679`의 [CI 42016275865](https://github.com/2026-sbh-delta/delta-sample-app/actions/runs/42016275865) 성공. 이후 문서 커밋의 상태는 GitHub Actions에서 확인
 
 ## 기존 FE/BE 샘플 앱 (2026-11-04 기록)
 
