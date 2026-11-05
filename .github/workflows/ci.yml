@@ -39,11 +39,13 @@ jobs:
 
   compose:
     runs-on: ubuntu-latest
+    # CI 전용 값. 작업 단위로 둬야 정리 단계(docker compose down)도 같은 값을 받는다.
+    env:
+      POSTGRES_PASSWORD: ci-only-compose
     steps:
       - uses: actions/checkout@v6
       - name: Build and smoke test web and DB containers
         run: |
-          export POSTGRES_PASSWORD="$(openssl rand -hex 16)"
           docker compose up -d --build --wait
           curl --fail --retry 5 --retry-delay 1 http://localhost:8080/healthz
           curl --fail -o /dev/null http://localhost:8080/board

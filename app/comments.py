@@ -13,10 +13,11 @@ CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; 
 
 def render_comments(post_id: str, items: list[str]) -> str:
     # 저장된 댓글을 그대로 목록에 넣는다.
-    rows = "".join(f"<li>{text}</li>" for text in items) or "<li>아직 댓글이 없습니다.</li>"
-    form = (f'<form method="post" action="/posts/{post_id}/comments" class="stack">'
-            '<textarea name="comment" required rows="3"></textarea><button>댓글 등록</button></form>')
-    return f'<section class="comments"><ul id="comment-list">{rows}</ul>{form}</section>'
+    rows = "".join(f"<li>{text}</li>" for text in items) or '<li class="none">아직 댓글이 없습니다.</li>'
+    form = (f'<form method="post" action="/posts/{post_id}/comments" class="card stack">'
+            '<label>댓글 쓰기<textarea name="comment" required rows="3" placeholder="댓글을 입력하세요"></textarea></label>'
+            '<div class="form-actions"><button>댓글 등록</button></div></form>')
+    return f'<section class="comments"><ul id="comment-list" class="card">{rows}</ul>{form}</section>'
 
 
 @comments.get("/posts/<post_id>/comments")
@@ -24,8 +25,10 @@ def comment_list(post_id: str):
     post = get_post(post_id)
     if post is None:
         abort(404)
-    content = f'<a href="/posts/{post["id"]}">본문으로</a>{render_comments(post["id"], list_comments(post["id"]))}'
-    return page("댓글", content), 200, {"Content-Security-Policy": CSP}
+    items = list_comments(post["id"])
+    content = render_comments(post["id"], items)
+    back = f'<a class="ghost" href="/posts/{post["id"]}">← 본문으로</a>'
+    return page("댓글", content, lead=f"{len(items)}개의 댓글", action=back), 200, {"Content-Security-Policy": CSP}
 
 
 @comments.post("/posts/<post_id>/comments")
