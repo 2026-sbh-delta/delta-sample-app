@@ -74,4 +74,10 @@
 - 배포된 기존 S3용 FE/BE tar.gz의 SHA-256을 확인하고 각 파일을 게시 후보의 독립 dist와 바이트 단위로 비교했다. FE7개/BE6개 파일이 모두 일치했다. 운영 manifest는 배포 당시 `source_dirty=true`인 이력을 유지하며 그 자체가 당시 커밋 빌드였음을 뜻하지 않는다.
 - Docker와 새 원격 CI 실행 결과는 별도로 확인한다.
 
+### 2026-11-05 원격 CI 후속
+
+- 최초 게시 커밋의 [CI 42016064978](https://github.com/2026-sbh-delta/delta-sample-app/actions/runs/42016064978)은 Node 문법/독립 빌드와 PostgreSQL 통합 테스트 26개를 통과했고 로컬 CA가 필요한 TLS 테스트 1개는 건너뛰었다. Docker 빌드 단계는 실패했다.
+- 원인: Backend `.dockerignore`의 기본 전체 제외 규칙에 신규 `package-lock.json` 허용이 빠져 Dockerfile의 COPY가 실패했다. 해당 파일만 추가 허용했다. PostgreSQL 의존성의 잠금 파일과 독립 Docker build context는 유지한다.
+- 새 CI의 실제 실행과 결과는 해당 수정 커밋의 GitHub Actions 상태를 따른다. 로컬 환경에는 Docker가 없어 Docker 빌드는 로컬에서 실행하지 않았다.
+
 - 게시 후보의 기능 커밋 `82908b67c1bde7bd4fa695c0c61b198a2451051d`에서 생성한 FE/BE dist 파일 내용이 기존 운영 산출물과 각각 7개/6개 모두 동일하다. 실제 운영 manifest의 기준 커밋과 source_dirty 값은 이전 배포 당시 기록을 유지한다.
