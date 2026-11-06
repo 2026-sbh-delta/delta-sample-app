@@ -14,7 +14,9 @@ export function postgresConfig(env) {
   if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) throw new Error('PGPORT must be between 1 and 65535');
   const mode = env.PGSSLMODE ?? 'verify-full';
   if (!['disable', 'verify-full'].includes(mode)) throw new Error('PGSSLMODE must be verify-full or local-only disable');
-  if (mode === 'disable' && !['127.0.0.1', 'localhost', '::1'].includes(env.PGHOST)) {
+  // 평문은 로컬 연결에만 허용한다. /cloudsql/<연결 이름>은 Cloud Run 내장 Cloud SQL 소켓이다(외부 구간은 Cloud SQL이 IAM·TLS로 보호).
+  if (mode === 'disable' && !['127.0.0.1', 'localhost', '::1'].includes(env.PGHOST)
+      && !/^\/cloudsql\/[a-z0-9-]+:[a-z0-9-]+:[a-z0-9-]+$/.test(env.PGHOST)) {
     throw new Error('Disabling PostgreSQL TLS is allowed only for a local test database');
   }
   if (mode === 'verify-full' && !env.PGSSLROOTCERT) throw new Error('PGSSLROOTCERT is required for verified PostgreSQL TLS');
@@ -33,6 +35,8 @@ export function postgresConfig(env) {
 
 export function createStorage(env) {
   const mode = env.STORAGE_BACKEND ?? 'memory';
+  const deployed = env.APP_ENV === 'staging';
+  if (deployed && mode !== 'postgres') throw new Error('STORAGE_BACKEND must be postgres in staging');
   if (mode === 'memory') {
     const notes = new Map();
     return {
@@ -66,7 +70,18 @@ export function createStorage(env) {
   };
   return {
     mode,
-    health: () => database(async (db) => { await db.query('SELECT 1 FROM delta_notes.notes LIMIT 1'); }),
+    health: () => database(async (db) => {
+      const databaseVersionNum = await postgresVersion(db);
+      if (deployed && Math.floor(databaseVersionNum / 10000) !== 18) throw unavailable();
+      await db.query('SELECT position, id, title, content, created_at FROM delta_notes.notes LIMIT 1');
+      if (env.APP_ENV === 'staging') {
+        const value = (await db.query('SELECT count(*) AS "remainingRows" FROM delta_notes.notes')).rows[0]?.remainingRows;
+        const remainingRows = Number(value);
+        if (!/^\d+$/.test(String(value)) || !Number.isSafeInteger(remainingRows)) throw unavailable();
+        return { databaseVersionNum, remainingRows };
+      }
+      return { databaseVersionNum };
+    }),
     close: async () => { if (poolPromise) await (await poolPromise).end(); },
     list: () => database(async (db) => (await db.query(
       'SELECT id, title, content, created_at AS "createdAt" FROM delta_notes.notes ORDER BY position DESC',
@@ -98,4 +113,13 @@ export function createStorage(env) {
       return database(async (db) => (await db.query('DELETE FROM delta_notes.notes WHERE id = $1', [id])).rowCount === 1);
     },
   };
+}
+
+// SHOW returns text with pg; never substitute a configured desired version.
+export async function postgresVersion(client) {
+  const value = (await client.query('SHOW server_version_num')).rows[0]?.server_version_num;
+  if (!/^\d+$/.test(String(value)) || !Number.isSafeInteger(Number(value)) || Number(value) < 10000) {
+    throw unavailable();
+  }
+  return Number(value);
 }
