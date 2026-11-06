@@ -202,8 +202,7 @@ async function renderRoute({ focus = true } = {}) {
       $('detail-title').textContent = note.title;
       $('detail-date').textContent = fullDate.format(new Date(note.createdAt));
       $('detail-date').dateTime = note.createdAt;
-      // 시연용 취약점: 게시글 본문을 HTML로 그대로 넣는다(저장형 XSS). SAST·DAST·AI 수정 루프의 대상이다.
-      $('detail-body').innerHTML = note.content || '본문이 없는 게시글이에요.';
+      $('detail-body').textContent = note.content || '본문이 없는 게시글이에요.';
       $('detail-body').classList.toggle('is-empty', !note.content);
       $('detail-loading').hidden = true;
       $('detail-content').hidden = false;
