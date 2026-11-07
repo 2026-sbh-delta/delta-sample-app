@@ -238,12 +238,13 @@ form.addEventListener('submit', async (event) => {
   setBusy(true);
   notice();
   try {
-    const { note } = await api('/notes', { method: 'POST', body: JSON.stringify(body) });
+    await api('/notes', { method: 'POST', body: JSON.stringify(body) });
     form.reset();
     countCharacters();
     if (revision === submittedRevision && activeView === 'write') {
       nextNotice = '게시글을 등록했어요.';
-      location.hash = `/posts/${encodeURIComponent(note.id)}`;
+      // 등록 뒤에는 목록으로 간다. 저장된 글은 다른 사용자가 열 때 상세 화면에서 보인다.
+      location.hash = '/posts';
     } else if (activeView === 'list') {
       const refresh = renderRoute({ focus: false });
       const refreshedRevision = revision;
