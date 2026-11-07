@@ -1,0 +1,21 @@
+# Inherited by compose.production.yaml; not a standalone app deployment.
+services:
+  backend:
+    environment:
+      PGSSLMODE: verify-full
+    volumes:
+      - type: bind
+        source: ${DB_CA_FILE:-/etc/delta-sample/rds-ca.pem}
+        target: /run/db-ca.pem
+        read_only: true
+        bind:
+          create_host_path: false
+    logging: &logging
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_REGION:?AWS_REGION is required}
+        awslogs-group: ${AWS_LOG_GROUP:?AWS_LOG_GROUP must be under /delta/workload/}
+        mode: non-blocking
+        max-buffer-size: 4m
+  frontend:
+    logging: *logging

@@ -21,7 +21,7 @@ npm run build
 npm run start:built
 ```
 
-`dist/`에는 서버, 라이브러리, 자체 package manifest와 lockfile을 포함해요. `.env`는 포함하지 않아요. 다른 서버에 `dist/`만 복사했다면 그 안에서 `npm ci --omit=dev --ignore-scripts`를 실행한 뒤 `node server.mjs`로 시작해요. PostgreSQL 모드에는 production 의존성 `pg`가 필요해요.
+`dist/`에는 서버, 라이브러리, scripts, migration SQL, 자체 package manifest와 lockfile을 포함해요. `.env`는 포함하지 않아요. 다른 서버에 `dist/`만 복사했다면 그 안에서 `npm ci --omit=dev --ignore-scripts`를 실행한 뒤 `node server.mjs`로 시작해요. PostgreSQL 모드에는 production 의존성 `pg`가 필요해요.
 
 ## 개별 Docker 이미지
 
@@ -79,3 +79,26 @@ AWS에서는 인프라 저장소의 `deploy/workload/release.py init-db`가 EIC�
 제목은 1~120자, 내용은 2,000자 이하, JSON은 16 KiB 이하예요. 최대 1,000개를 보관하고 PostgreSQL의 동시 생성도 이 제한을 지켜요.
 
 API와 DB의 notes 명칭 및 기존 데이터를 유지해요. 없는 ID와 잘못된 ID의 단건 조회는 `NOTE_NOT_FOUND` 404예요. PG 단건 조회도 매개변수 바인딩을 사용하고 스키마나 계정 권한을 변경하지 않아요. FE 게시판 버전을 배포하기 전에 BE를 먼저 갱신해요.
+
+
+## 스테이징 reset과 배포 헬스 (2026-11-06)
+
+`node scripts/reset-db.mjs` 또는 `npm run reset:staging`은 승인된 스테이징 전용 명령입니다. 소스와 독립 `dist/`에서 같은 경로로 실행할 수 있습니다. 테스트 주입용 공개 API는 `resetDatabase({ env, createClient })`이며 `createClient`에는 `postgresConfig(env)`로 만든 연결 설정을 전달합니다. 호출자는 Client 또는 Client의 Promise를 반환할 수 있습니다.
+
+연결을 만들기 전에 `APP_ENV=staging`, `STORAGE_BACKEND=postgres`, `APP_RESET_DATABASE=PGDATABASE`를 모두 요구합니다. DB 이름은 소문자 영문·숫자·밑줄의63자 이하 이름이며 밑줄 경계의 `staging` 식별자가 있어야 합니다. `prod`·`production` 식별자는 거부합니다. 전용 reset 자격은 서비스 앱 자격과 별도로 배포 호스트가 주입합니다.
+
+실제 연결의 `current_database()`가 허용한 DB와 같고 `SHOW server_version_num` 메이저가18인 경우에만 트랜잭션을 시작합니다. 앱 초기화/쓰기와 같은 advisory lock을 잡고 `delta_notes` migration → `delta_notes.notes`만 `TRUNCATE RESTART IDENTITY` → 같은 트랜잭션의 행 수0 검사 → COMMIT 순서로 수행합니다. CASCADE·다른 스키마·운영 DB 삭제는 사용하지 않습니다. 필요한 권한은 이 스테이징 DB의 앱 스키마 준비와 해당 테이블 TRUNCATE/identity 초기화·조회로 제한합니다.
+
+성공 stdout은 JSON 한 줄입니다.
+
+```json
+{"remaining_rows":0,"database_version_num":180003}
+```
+
+버전 값은 실제 관측값이며 위 숫자는 예시입니다. 거부·실패는 안전한 실패 JSON을 stderr에 쓰고 nonzero로 종료합니다. 예외·SQL·연결 문자열·비밀번호를 출력하지 않습니다. 트랜잭션 도중 실패·잔존 행은 ROLLBACK하며 연결을 닫습니다. reset의0행은 commit 시점 결과입니다. 이전 DAST 종료·쓰기 drain·교체 후 최종0행 확인은 호출하는 스테이징 도구가 책임집니다.
+
+Docker는 `npm run build -- --require-migrations`로 migration을 필수 패키징합니다. 일반 `npm run build`도 migration이 있으면 항상 복사하며, 기존 memory 전용 독립 빌드처럼 migration 소스가 없는 경우만 허용합니다. 그 산출물에서 reset은 실패하므로 배포용으로 사용하지 않습니다. `.env`나 비밀은 산출물에 포함하지 않습니다.
+
+staging/production에서는 `APP_VERSION`이 full40 commit SHA여야 하고, postgres 저장과 실제 PostgreSQL18만 허용합니다. 서버 시작은 DDL/reset을 수행하지 않고 필요한 테이블 열을 조회합니다. health와 `storage.health()`는 관측한 숫자 `databaseVersionNum`을 반환합니다. 다른 로컬 환경에서는 기존 PG 메이저를 계속 사용할 수 있습니다.
+
+`IMAGE_DIGEST`, `CLOUD_PROVIDER`, 선택 `SERVED_BY`는 헬스의 `digest`, `cloudProvider`, `servedBy` 진단에 사용하며 `commit=version`입니다. 진단값은 실행 이미지의 증거가 아닙니다. BE 비밀 파일 wrapper와 GCP Proxy 연결은 [운영 Compose 안내](../README.md)를 따릅니다.

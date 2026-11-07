@@ -70,3 +70,10 @@ docker run --rm -p 3000:3000 --env-file .env delta-sample-frontend:demo
 Linux 외 OS, DMI 읽기 실패, 알 수 없는 제조사는 기본 회색입니다. 감지되지 않는 컨테이너나 온프레미스에서는 환경변수를 지정합니다. 예를 들어 이 폴더에서 `CLOUD_PROVIDER=onprem npm start`로 실행하면 초록 테마입니다. 셸/CI 환경변수는 `.env`보다 우선하고, 명시한 테마는 감지보다 우선합니다. 허용하지 않은 CLOUD_PROVIDER 값은 시작 시 거부합니다. 같은 산출물로 실행할 수 있으며 설정 변경 후 재시작하면 됩니다.
 
 자동 감지와 브라우저 검증의 실행 범위는 [게시판 AI-DLC 기록](../docs/ai-dlc/bulletin-board.md)을 확인하세요.
+
+
+## 배포 헬스 (2026-11-06)
+
+`/healthz`는 기존 `version`을 유지하고 `commit=version`, `digest=IMAGE_DIGEST`, `cloudProvider`, `servedBy`를 추가합니다. `SERVED_BY`가 비어 있으면 cloudProvider를 사용합니다. staging/production의 `APP_VERSION`은 full40 commit SHA를 요구합니다. 기존 로컬·테스트 버전 문자열은 유지합니다. API 프록시는 BE가 조회한 실제 PostgreSQL 버전과 실패 상태를 그대로 전달합니다.
+
+FE HTTP `/healthz` 자체는 기존처럼 FE 상태를 나타냅니다. 운영 Compose의 컨테이너 healthcheck는 `/healthz`와 `/api/health`를 함께 검사합니다. 공개 런타임 설정의 기존 필드와 `public/app.js`는 변경하지 않았습니다. 운영 이미지·로그·비밀 분리는 [운영 Compose 안내](../README.md)를 따릅니다.

@@ -1,5 +1,16 @@
 # 프로젝트 진행 상태
 
+
+## 운영 Compose·스테이징 reset (2026-11-06)
+
+- 승인 명세와 독립 implementation 역할에 따라 detached worktree에서 구현. 다른 에이전트·스킬·Claude 호출 없음
+- 구현: staging 전용 reset, 실제 PG18·필수 열 헬스, full40 commit/digest/provider 진단, reset/migration 포함 BE 산출물, FE만 공개하는 운영 Compose와 클라우드별 non-blocking 로그
+- 검증: Node24.13.0에서 기존22개와 신규30개, 합계52개 통과·실패0. 기존 실제 DB 통합1개는 설정 미주입으로 skip
+- 추가 검증: 문법 검사, FE/BE 빌드, migration 필수 BE 빌드, shell 문법, AWS/GCP Compose 렌더링과 로그 옵션 분리, 테스트/공개 app.js 해시 동일
+- 미실행: 새 실제 DB 통합은 메인 담당. Docker 이미지 빌드·클라우드 배포·Terraform·commit/push/PR 미실행
+- 인계: 공통 Compose와 두 logging companion 파일을 함께 배치. GCP Proxy 생성·BE namespace 연결, 비밀 파일과 이미지 검증은 배포 호스트 담당
+- 상세: [구현·검증·파일 목록](ai-dlc/compose-delivery.md)
+
 ## 게시판 전환과 UI 개선 (2026-11-05)
 
 - 요청: 게시글 생성/목록/상세 조회와 현대적인 UI. 댓글은 제외
