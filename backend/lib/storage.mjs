@@ -35,8 +35,8 @@ export function postgresConfig(env) {
 
 export function createStorage(env) {
   const mode = env.STORAGE_BACKEND ?? 'memory';
-  const deployed = env.APP_ENV === 'staging';
-  if (deployed && mode !== 'postgres') throw new Error('STORAGE_BACKEND must be postgres in staging');
+  const deployed = ['staging', 'production'].includes(env.APP_ENV);
+  if (deployed && mode !== 'postgres') throw new Error('STORAGE_BACKEND must be postgres in staging and production');
   if (mode === 'memory') {
     const notes = new Map();
     return {

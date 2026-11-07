@@ -16,6 +16,9 @@ test('postgres mode requires explicit credentials and verified remote TLS', () =
   assert.throws(() => createBackend({ env: { STORAGE_BACKEND: 'postgres' } }), /PGHOST/);
   const env = { PGHOST: 'database.example.com', PGDATABASE: 'notes', PGUSER: 'app', PGPASSWORD: 'test' };
   assert.throws(() => postgresConfig({ ...env, PGSSLMODE: 'disable' }), /only for a local/);
+  // Cloud Run 내장 Cloud SQL 소켓은 로컬 연결로 본다. 비슷하게 생긴 다른 경로는 거부한다.
+  assert.equal(postgresConfig({ ...env, PGHOST: '/cloudsql/term2-delta:asia-northeast3:db-pg18', PGSSLMODE: 'disable' }).ssl, false);
+  assert.throws(() => postgresConfig({ ...env, PGHOST: '/cloudsql/../tmp', PGSSLMODE: 'disable' }), /only for a local/);
   assert.throws(() => postgresConfig({ ...env, PGSSLMODE: 'require' }), /verify-full/);
   assert.throws(() => postgresConfig(env), /PGSSLROOTCERT/);
   assert.throws(() => postgresConfig({ ...env, PGPORT: 'invalid' }), /PGPORT/);

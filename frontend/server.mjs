@@ -64,7 +64,8 @@ export function createFrontend({ env = process.env, logger = console.log } = {})
     try {
       const path = requestContext(req, res, 'frontend', logger);
       res.setHeader('Referrer-Policy', 'same-origin');
-      res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'");
+      // 시연용 취약점: 인라인 스크립트·스타일을 허용한다(CSP 완화). 상세 본문 innerHTML과 함께 저장형 XSS가 실제로 실행된다.
+      res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'");
 
       if (path === config.apiEndpoint || path.startsWith(`${config.apiEndpoint}/`)) {
         proxy(req, res, config);
@@ -72,7 +73,11 @@ export function createFrontend({ env = process.env, logger = console.log } = {})
       }
       allow(req, res, ['GET', 'HEAD']);
       if (path === '/healthz') {
-        json(res, 200, { status: 'ok', service: 'frontend', version: config.version });
+        json(res, 200, {
+          status: 'ok', service: 'frontend', version: config.version,
+          commit: config.version, digest: config.digest,
+          cloudProvider: config.cloudProvider, servedBy: config.servedBy,
+        });
         return;
       }
       if (path === '/runtime-config.json') {
