@@ -12,12 +12,18 @@ registerHooks({resolve(specifier, context, nextResolve) {
 
 test('staging health reports observed database version, remaining rows and active writes', async t => {
   state.version = 180003;
-  const app = createBackend({env: stagingEnv, logger: () => {}});
+  const app = createBackend({env: {...stagingEnv, CLOUD_PROVIDER: 'gcp', APP_VERSION: 'a'.repeat(40)}, logger: () => {}});
   t.after(() => app.storage.close());
   const url = await listen(t, app.server);
   const response = await fetch(url + '/api/health');
   assert.equal(response.status, 200);
   const body = await response.json();
+  // These fields are consumed together by the team's staging check_health contract.
+  assert.equal(body.status, 'ok');
+  assert.equal(body.storage, 'postgres');
+  assert.equal(body.environment, 'staging');
+  assert.equal(body.version, 'a'.repeat(40));
+  assert.equal(body.cloudProvider, 'gcp');
   assert.equal(body.databaseVersionNum, 180003);
   assert.equal(body.remainingRows, 0);
   assert.equal(body.activeWrites, 0);
@@ -28,5 +34,7 @@ test('normal memory app still starts without staging reset requirements', async 
   const url = await listen(t, app.server);
   const response = await fetch(url + '/api/health');
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).storage, 'memory');
+  const body = await response.json();
+  assert.equal(body.storage, 'memory');
+  assert.equal(body.cloudProvider, 'aws');
 });

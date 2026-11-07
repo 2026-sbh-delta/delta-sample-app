@@ -46,6 +46,7 @@ export function createBackend({ env = process.env, logger = console.log } = {}) 
           status: 'ok',
           service: 'backend',
           environment: config.environment,
+          cloudProvider: env.CLOUD_PROVIDER ?? config.environment,
           version: config.version,
           instance: hostname(),
           uptimeSeconds: Math.floor((performance.now() - started) / 1000),
